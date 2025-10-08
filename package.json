@@ -1,0 +1,37 @@
+{
+  "name": "jira-mcp-bearer",
+  "version": "1.0.0",
+  "description": "Model Context Protocol server for Jira Server/Data Center with Bearer token authentication",
+  "type": "module",
+  "bin": {
+    "jira-mcp-bearer": "./index.js"
+  },
+  "scripts": {
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest",
+    "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
+    "test:coverage": "NODE_OPTIONS=--experimental-vm-modules jest --coverage"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.19.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  },
+  "keywords": [
+    "mcp",
+    "jira",
+    "bearer-auth",
+    "jira-server",
+    "model-context-protocol"
+  ],
+  "author": {
+    "name": "hacctarr",
+    "email": "triblegroup@gmail.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hacctarr/jira-mcp-bearer.git"
+  },
+  "license": "MIT"
+}

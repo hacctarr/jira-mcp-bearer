@@ -1,0 +1,6 @@
+{
+  "jira": {
+    "baseUrl": "https://jira.example.com",
+    "bearerToken": "your-bearer-token-here"
+  }
+}
