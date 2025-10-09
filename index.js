@@ -6,11 +6,57 @@ import { z } from 'zod';
 import { readFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { dirname, join, resolve, basename } from 'path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// Load configuration from config.json or environment variables
+// Constants
+const HTTP_STATUS = {
+  UNAUTHORIZED: 401,
+  FORBIDDEN: 403,
+  NOT_FOUND: 404,
+  TOO_MANY_REQUESTS: 429,
+  INTERNAL_SERVER_ERROR: 500,
+  BAD_GATEWAY: 502,
+  SERVICE_UNAVAILABLE: 503,
+  GATEWAY_TIMEOUT: 504
+};
+
+const REQUEST_TIMEOUT_MS = 30000; // 30 seconds
+
+// Validation schemas
+const issueKeySchema = z.string().regex(
+  /^[A-Z]+-\d+$/,
+  'Invalid issue key format. Must be uppercase letters, hyphen, then numbers (e.g., DEV-123)'
+);
+
+const projectKeySchema = z.string().regex(
+  /^[A-Z]+$/,
+  'Invalid project key format. Must be uppercase letters only (e.g., DEV, PROJ)'
+);
+
+const jqlSchema = z.string().min(1, 'JQL query cannot be empty');
+
+const summarySchema = z.string().min(1, 'Summary cannot be empty').max(255, 'Summary too long (max 255 characters)');
+
+const maxResultsSchema = z.number().int().min(1).max(50, 'Maximum 50 results allowed');
+
+/**
+ * Validates file path to prevent path traversal attacks
+ * @param {string} filePath - Path to validate
+ * @returns {boolean} True if path is safe
+ */
+function isValidFilePath(filePath) {
+  const resolved = resolve(filePath);
+  const cwd = resolve(process.cwd());
+  return resolved.startsWith(cwd);
+}
+
+/**
+ * Load configuration from config.json or environment variables
+ * Priority: config.json > environment variables
+ * @returns {Promise<{baseUrl: string, bearerToken: string}>} Configuration object
+ */
 async function loadConfig() {
   const configPath = join(__dirname, 'config.json');
 
@@ -50,64 +96,89 @@ const config = await loadConfig();
 const JIRA_BASE_URL = config.baseUrl;
 const JIRA_BEARER_TOKEN = config.bearerToken;
 
-// Helper function for API requests
+/**
+ * Makes authenticated request to Jira REST API with timeout
+ * @param {string} endpoint - API endpoint path (e.g., '/rest/api/2/issue/DEV-123')
+ * @param {Object} options - Fetch options
+ * @returns {Promise<Object|null>} Parsed JSON response or null for 204 responses
+ * @throws {Error} On HTTP errors with specific messages or timeout
+ */
 async function jiraRequest(endpoint, options = {}) {
   const url = `${JIRA_BASE_URL}${endpoint}`;
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      'Authorization': `Bearer ${JIRA_BEARER_TOKEN}`,
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-  });
 
-  if (!response.ok) {
-    // Specific error messages based on status code
-    let errorMessage;
-    switch (response.status) {
-      case 401:
-        errorMessage = 'Authentication failed. Your Bearer token is invalid or expired.';
-        break;
-      case 403:
-        errorMessage = 'Permission denied. Your Bearer token does not have access to this resource.';
-        break;
-      case 404:
-        errorMessage = 'Resource not found. Check that the issue key, project key, or endpoint is correct.';
-        break;
-      case 429:
-        errorMessage = 'Rate limit exceeded. Please wait before making more requests.';
-        break;
-      case 500:
-      case 502:
-      case 503:
-      case 504:
-        errorMessage = `Jira server error (${response.status}). The server may be temporarily unavailable.`;
-        break;
-      default:
-        errorMessage = `Jira API error: ${response.status} ${response.statusText}`;
-    }
+  // Set up abort controller for timeout
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
-    // Try to get more details from response body
-    try {
-      const errorBody = await response.json();
-      if (errorBody.errorMessages && errorBody.errorMessages.length > 0) {
-        errorMessage += `\nDetails: ${errorBody.errorMessages.join(', ')}`;
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        'Authorization': `Bearer ${JIRA_BEARER_TOKEN}`,
+        'Content-Type': 'application/json',
+        'User-Agent': 'jira-mcp-bearer/1.0.0',
+        ...options.headers,
+      },
+    });
+
+    if (!response.ok) {
+      // Specific error messages based on status code
+      let errorMessage;
+      switch (response.status) {
+        case HTTP_STATUS.UNAUTHORIZED:
+          errorMessage = 'Authentication failed. Your Bearer token is invalid or expired.';
+          break;
+        case HTTP_STATUS.FORBIDDEN:
+          errorMessage = 'Permission denied. Your Bearer token does not have access to this resource.';
+          break;
+        case HTTP_STATUS.NOT_FOUND:
+          errorMessage = 'Resource not found. Check that the issue key, project key, or endpoint is correct.';
+          break;
+        case HTTP_STATUS.TOO_MANY_REQUESTS:
+          errorMessage = 'Rate limit exceeded. Please wait before making more requests.';
+          break;
+        case HTTP_STATUS.INTERNAL_SERVER_ERROR:
+        case HTTP_STATUS.BAD_GATEWAY:
+        case HTTP_STATUS.SERVICE_UNAVAILABLE:
+        case HTTP_STATUS.GATEWAY_TIMEOUT:
+          errorMessage = `Jira server error (${response.status}). The server may be temporarily unavailable.`;
+          break;
+        default:
+          errorMessage = `Jira API error: ${response.status} ${response.statusText}`;
       }
-    } catch {
-      // Ignore JSON parse errors
+
+      // Try to get more details from response body
+      try {
+        const errorBody = await response.json();
+        if (errorBody.errorMessages && errorBody.errorMessages.length > 0) {
+          errorMessage += `\nDetails: ${errorBody.errorMessages.join(', ')}`;
+        }
+      } catch {
+        // Ignore JSON parse errors
+      }
+
+      console.error(`Jira API error for ${endpoint}:`, errorMessage);
+      throw new Error(errorMessage);
     }
 
-    throw new Error(errorMessage);
-  }
+    if (response.status === 204) {
+      return null;
+    }
 
-  if (response.status === 204) {
-    return null;
+    return response.json();
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      console.error(`Request timeout for ${endpoint} after ${REQUEST_TIMEOUT_MS}ms`);
+      throw new Error(`Request timeout: The request took longer than ${REQUEST_TIMEOUT_MS / 1000} seconds`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
   }
-
-  return response.json();
 }
 
+/* istanbul ignore next */
 async function main() {
   try {
     // Create MCP server
@@ -124,8 +195,8 @@ async function main() {
     mcpServer.registerTool('jira-search-issues', {
       description: 'Search for Jira issues using JQL (Jira Query Language)',
       inputSchema: {
-        jql: z.string().describe('JQL query string (e.g., "project = CORE AND status = Open")'),
-        maxResults: z.number().optional().default(50).describe('Maximum number of results to return')
+        jql: jqlSchema.describe('JQL query string (e.g., "project = CORE AND status = Open")'),
+        maxResults: maxResultsSchema.optional().default(50).describe('Maximum number of results to return (max 50)')
       }
     }, async ({ jql, maxResults }) => {
       try {
@@ -157,7 +228,7 @@ async function main() {
     mcpServer.registerTool('jira-get-issue', {
       description: 'Get details of a specific Jira issue',
       inputSchema: {
-        issueKey: z.string().describe('Issue key (e.g., "CORE-123")')
+        issueKey: issueKeySchema.describe('Issue key (e.g., "DEV-123")')
       }
     }, async ({ issueKey }) => {
       try {
@@ -359,9 +430,9 @@ async function main() {
     mcpServer.registerTool('jira-create-issue', {
       description: 'Create a new Jira issue',
       inputSchema: {
-        projectKey: z.string().describe('Project key (e.g., "DEV")'),
-        issueType: z.string().describe('Issue type name (e.g., "Bug", "Story", "Task")'),
-        summary: z.string().describe('Issue summary/title'),
+        projectKey: projectKeySchema.describe('Project key (e.g., "DEV")'),
+        issueType: z.string().min(1).describe('Issue type name (e.g., "Bug", "Story", "Task")'),
+        summary: summarySchema.describe('Issue summary/title (max 255 characters)'),
         description: z.string().optional().describe('Issue description'),
         fields: z.record(z.any()).optional().describe('Additional custom fields as JSON object')
       }
@@ -734,13 +805,15 @@ async function main() {
     mcpServer.registerTool('jira-upload-attachment', {
       description: 'Upload a file attachment to a Jira issue',
       inputSchema: {
-        issueKey: z.string().describe('Issue key (e.g., "DEV-123")'),
-        filePath: z.string().describe('Absolute file path to upload')
+        issueKey: issueKeySchema.describe('Issue key (e.g., "DEV-123")'),
+        filePath: z.string().refine(isValidFilePath, {
+          message: 'File path must be within the current working directory to prevent path traversal attacks'
+        }).describe('File path to upload (must be within current directory)')
       }
     }, async ({ issueKey, filePath }) => {
       try {
         const fileContent = await readFile(filePath);
-        const fileName = filePath.split('/').pop();
+        const fileName = basename(filePath);
 
         const formData = new FormData();
         const blob = new Blob([fileContent]);
@@ -819,8 +892,8 @@ async function main() {
     mcpServer.registerTool('jira-get-projects', {
       description: 'Get list of all accessible Jira projects with pagination. Returns key and name for each project.',
       inputSchema: {
-        maxResults: z.number().optional().default(10).describe('Maximum number of projects to return (default: 10, max: 50)'),
-        startAt: z.number().optional().default(0).describe('Starting index for pagination (default: 0)')
+        maxResults: maxResultsSchema.optional().default(10).describe('Maximum number of projects to return (default: 10, max: 50)'),
+        startAt: z.number().int().min(0).optional().default(0).describe('Starting index for pagination (default: 0)')
       }
     }, async ({ maxResults = 10, startAt = 0 }) => {
       try {
@@ -873,18 +946,32 @@ async function main() {
 }
 
 // Handle process termination
+/* istanbul ignore next */
 process.on('SIGINT', () => {
   console.error('Shutting down Jira MCP Server...');
   process.exit(0);
 });
 
+/* istanbul ignore next */
 process.on('SIGTERM', () => {
   console.error('Shutting down Jira MCP Server...');
   process.exit(0);
 });
 
-// Start the server
-main().catch((error) => {
-  console.error('Unhandled error in main:', error);
-  process.exit(1);
-});
+// Start the server (only if not in test environment)
+/* istanbul ignore next */
+if (process.env.NODE_ENV !== 'test') {
+  main().catch((error) => {
+    console.error('Unhandled error in main:', error);
+    process.exit(1);
+  });
+}
+
+// Export for testing
+export {
+  loadConfig,
+  jiraRequest,
+  isValidFilePath,
+  HTTP_STATUS,
+  REQUEST_TIMEOUT_MS
+};
