@@ -39,6 +39,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `tools/users.js` - User operations
     - `tools/metadata.js` - Issue types, statuses, custom fields
   - Reduced main `index.js` from 1200+ lines to ~80 lines
+- Enhanced error message formatting with bullet points and clear sections:
+  - Separate "Error details" and "Field validation errors" sections
+  - Each error on its own line for better readability
+  - Helps users quickly identify missing required fields
+
+### Fixed
+
+- **Critical:** Fixed MCP server URL doubling bug where baseUrl was concatenated twice
+  - Removed unnecessary `boundJiraRequest` binding that caused `https://jira.alkami.comhttps://jira.alkami.com`
+  - All MCP tool calls now construct correct URLs
+- Fixed `jira-create-issue` field ordering issue
+  - Use `Object.assign()` to merge additional fields after core fields are set
+  - Ensures custom fields and components are properly added without conflicts
+  - Prevents 400 Bad Request errors from incorrect field ordering
 
 ## [1.0.1] - 2025-10-08
 

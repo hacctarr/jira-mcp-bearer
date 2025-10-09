@@ -417,20 +417,3 @@ hacctarr (triblegroup@gmail.com)
 ## Version History
 
 See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
-
-### Latest Changes
-
-- Added issue filtering helper tools (get-my-issues, get-recent-issues)
-- Added worklog (time tracking) operations
-- Added project versions and components tools
-- Refactored into modular structure (lib/ and tools/ directories)
-- Reduced main index.js from 1200+ lines to ~80 lines
-
-### 1.0.0
-
-- Initial release with 20 tools
-- Full read and write operations support
-- Bearer token authentication
-- Comprehensive test suite
-- CI/CD pipeline with GitHub Actions
-- Interactive setup script
