@@ -119,8 +119,10 @@ Create a `config.json` file:
 
 ```json
 {
-  "jiraBaseUrl": "https://your-jira-server.com",
-  "jiraBearerToken": "your-bearer-token-here"
+  "jira": {
+    "baseUrl": "https://your-jira-server.com",
+    "bearerToken": "your-bearer-token-here"
+  }
 }
 ```
 
