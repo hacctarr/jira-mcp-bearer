@@ -178,18 +178,23 @@ export function registerIssueTools(mcpServer, jiraRequest, baseUrl, bearerToken)
     }
   }, async ({ projectKey, issueType, summary, description, fields = {} }) => {
     try {
+      // Start with required fields
       const issueData = {
         fields: {
           project: { key: projectKey },
           issuetype: { name: issueType },
-          summary,
-          ...fields
+          summary
         }
       };
 
+      // Add description if provided
       if (description) {
         issueData.fields.description = description;
       }
+
+      // Merge additional fields after core fields are set
+      // This allows custom fields and components to be added
+      Object.assign(issueData.fields, fields);
 
       const data = await jiraRequest(baseUrl, bearerToken, '/rest/api/2/issue', {
         method: 'POST',

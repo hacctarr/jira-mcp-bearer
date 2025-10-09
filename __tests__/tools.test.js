@@ -143,6 +143,22 @@ describe('Jira MCP Tools Integration Tests', () => {
       expect(createRequest.fields).toHaveProperty('summary');
       expect(createRequest.fields).toHaveProperty('issuetype');
     });
+
+    test('should validate create_issue with components', () => {
+      const createRequest = {
+        fields: {
+          project: { key: 'DEV' },
+          summary: 'Test issue',
+          description: 'Test description',
+          issuetype: { name: 'Story' },
+          components: [{ name: 'Core - Alkami Core Connect (ACC)' }]
+        }
+      };
+
+      expect(createRequest.fields).toHaveProperty('components');
+      expect(Array.isArray(createRequest.fields.components)).toBe(true);
+      expect(createRequest.fields.components[0]).toHaveProperty('name');
+    });
   });
 
   describe('Request Construction', () => {
