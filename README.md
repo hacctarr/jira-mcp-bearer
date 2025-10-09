@@ -39,6 +39,15 @@ All existing Jira MCP packages are designed for Jira Cloud and use Basic Authent
 
 ## Features
 
+### Production Enhancements
+
+- **Response Caching** - Metadata endpoints (projects, issue types, statuses, custom fields) cached for 5 minutes
+- **Retry Logic** - Automatic retry with exponential backoff for transient server errors (502, 503, 504)
+- **Field Filtering** - Optional `fields` parameter on search and get-issue to reduce response size
+- **Pagination** - `startAt` parameter on search-issues for fetching beyond first 50 results
+- **Request Timeouts** - 30-second timeout prevents hung connections
+- **Debug Logging** - Enable with `DEBUG=true` environment variable
+
 ### Available Tools (20 total)
 
 #### Issue Operations
