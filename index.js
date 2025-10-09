@@ -23,6 +23,46 @@ const HTTP_STATUS = {
 };
 
 const REQUEST_TIMEOUT_MS = 30000; // 30 seconds
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes for static data
+const MAX_RETRIES = 3;
+const RETRY_DELAY_BASE_MS = 1000; // Exponential backoff base delay
+
+// Simple in-memory cache for static data
+const cache = new Map();
+
+/**
+ * Cache wrapper with TTL support
+ * @param {string} key - Cache key
+ * @param {Function} fetchFn - Function to fetch data if not cached
+ * @param {number} ttl - Time to live in milliseconds
+ * @returns {Promise<any>} Cached or fresh data
+ */
+async function getCached(key, fetchFn, ttl = CACHE_TTL_MS) {
+  const cached = cache.get(key);
+  if (cached && Date.now() - cached.timestamp < ttl) {
+    if (process.env.DEBUG === 'true') {
+      console.error(`[CACHE HIT] ${key}`);
+    }
+    return cached.data;
+  }
+
+  if (process.env.DEBUG === 'true') {
+    console.error(`[CACHE MISS] ${key}`);
+  }
+
+  const data = await fetchFn();
+  cache.set(key, { data, timestamp: Date.now() });
+  return data;
+}
+
+/**
+ * Sleep utility for retry delays
+ * @param {number} ms - Milliseconds to sleep
+ * @returns {Promise<void>}
+ */
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 // Validation schemas
 const issueKeySchema = z.string().regex(
@@ -97,14 +137,23 @@ const JIRA_BASE_URL = config.baseUrl;
 const JIRA_BEARER_TOKEN = config.bearerToken;
 
 /**
- * Makes authenticated request to Jira REST API with timeout
+ * Makes authenticated request to Jira REST API with timeout and retry logic
  * @param {string} endpoint - API endpoint path (e.g., '/rest/api/2/issue/DEV-123')
  * @param {Object} options - Fetch options
+ * @param {number} retries - Number of retries remaining (default: MAX_RETRIES)
  * @returns {Promise<Object|null>} Parsed JSON response or null for 204 responses
  * @throws {Error} On HTTP errors with specific messages or timeout
  */
-async function jiraRequest(endpoint, options = {}) {
+async function jiraRequest(endpoint, options = {}, retries = MAX_RETRIES) {
   const url = `${JIRA_BASE_URL}${endpoint}`;
+
+  // Debug logging
+  if (process.env.DEBUG === 'true') {
+    console.error(`[${options.method || 'GET'}] ${url}`);
+    if (options.body) {
+      console.error(`[BODY] ${options.body}`);
+    }
+  }
 
   // Set up abort controller for timeout
   const controller = new AbortController();
@@ -125,6 +174,12 @@ async function jiraRequest(endpoint, options = {}) {
     if (!response.ok) {
       // Specific error messages based on status code
       let errorMessage;
+      const isRetryable = [
+        HTTP_STATUS.BAD_GATEWAY,
+        HTTP_STATUS.SERVICE_UNAVAILABLE,
+        HTTP_STATUS.GATEWAY_TIMEOUT
+      ].includes(response.status);
+
       switch (response.status) {
         case HTTP_STATUS.UNAUTHORIZED:
           errorMessage = 'Authentication failed. Your Bearer token is invalid or expired.';
@@ -158,15 +213,33 @@ async function jiraRequest(endpoint, options = {}) {
         // Ignore JSON parse errors
       }
 
+      // Retry logic for transient errors
+      if (isRetryable && retries > 0) {
+        const delay = RETRY_DELAY_BASE_MS * (MAX_RETRIES - retries + 1);
+        if (process.env.DEBUG === 'true') {
+          console.error(`[RETRY] ${response.status} error, retrying in ${delay}ms (${retries} retries left)`);
+        }
+        await sleep(delay);
+        return jiraRequest(endpoint, options, retries - 1);
+      }
+
       console.error(`Jira API error for ${endpoint}:`, errorMessage);
-      throw new Error(errorMessage);
+      const error = new Error(errorMessage);
+      error.status = response.status;
+      throw error;
     }
 
     if (response.status === 204) {
       return null;
     }
 
-    return response.json();
+    const data = await response.json();
+
+    if (process.env.DEBUG === 'true') {
+      console.error(`[RESPONSE] ${response.status} - ${JSON.stringify(data).length} bytes`);
+    }
+
+    return data;
   } catch (error) {
     if (error.name === 'AbortError') {
       console.error(`Request timeout for ${endpoint} after ${REQUEST_TIMEOUT_MS}ms`);
@@ -196,13 +269,17 @@ async function main() {
       description: 'Search for Jira issues using JQL (Jira Query Language)',
       inputSchema: {
         jql: jqlSchema.describe('JQL query string (e.g., "project = CORE AND status = Open")'),
-        maxResults: maxResultsSchema.optional().default(50).describe('Maximum number of results to return (max 50)')
+        maxResults: maxResultsSchema.optional().default(50).describe('Maximum number of results to return (max 50)'),
+        startAt: z.number().int().min(0).optional().default(0).describe('Starting index for pagination (default: 0)'),
+        fields: z.array(z.string()).optional().describe('Optional array of field names to return (e.g., ["summary", "status", "assignee"]). If omitted, returns all fields.')
       }
-    }, async ({ jql, maxResults }) => {
+    }, async ({ jql, maxResults, startAt, fields }) => {
       try {
-        const data = await jiraRequest(
-          `/rest/api/2/search?jql=${encodeURIComponent(jql)}&maxResults=${maxResults}`
-        );
+        let endpoint = `/rest/api/2/search?jql=${encodeURIComponent(jql)}&maxResults=${maxResults}&startAt=${startAt}`;
+        if (fields && fields.length > 0) {
+          endpoint += `&fields=${fields.join(',')}`;
+        }
+        const data = await jiraRequest(endpoint);
         return {
           content: [
             {
@@ -228,11 +305,16 @@ async function main() {
     mcpServer.registerTool('jira-get-issue', {
       description: 'Get details of a specific Jira issue',
       inputSchema: {
-        issueKey: issueKeySchema.describe('Issue key (e.g., "DEV-123")')
+        issueKey: issueKeySchema.describe('Issue key (e.g., "DEV-123")'),
+        fields: z.array(z.string()).optional().describe('Optional array of field names to return (e.g., ["summary", "status", "assignee"]). If omitted, returns all fields.')
       }
-    }, async ({ issueKey }) => {
+    }, async ({ issueKey, fields }) => {
       try {
-        const data = await jiraRequest(`/rest/api/2/issue/${issueKey}`);
+        let endpoint = `/rest/api/2/issue/${issueKey}`;
+        if (fields && fields.length > 0) {
+          endpoint += `?fields=${fields.join(',')}`;
+        }
+        const data = await jiraRequest(endpoint);
         return {
           content: [
             {
@@ -290,18 +372,20 @@ async function main() {
 
     // Register get-custom-fields tool
     mcpServer.registerTool('jira-get-custom-fields', {
-      description: 'Get all custom field definitions from Jira. Returns field ID, name, and schema information.',
+      description: 'Get all custom field definitions from Jira. Returns field ID, name, and schema information. Cached for 5 minutes.',
       inputSchema: {}
     }, async () => {
       try {
-        const data = await jiraRequest('/rest/api/2/field');
-        const customFields = data.filter(field => field.custom);
+        const data = await getCached('custom-fields', async () => {
+          const fields = await jiraRequest('/rest/api/2/field');
+          return fields.filter(field => field.custom);
+        });
 
         return {
           content: [
             {
               type: 'text',
-              text: JSON.stringify(customFields, null, 2)
+              text: JSON.stringify(data, null, 2)
             }
           ]
         };
@@ -400,11 +484,13 @@ async function main() {
 
     // Register list-issue-types tool
     mcpServer.registerTool('jira-list-issue-types', {
-      description: 'Get list of all available issue types in Jira (Bug, Story, Task, etc.)',
+      description: 'Get list of all available issue types in Jira (Bug, Story, Task, etc.). Cached for 5 minutes.',
       inputSchema: {}
     }, async () => {
       try {
-        const data = await jiraRequest('/rest/api/2/issuetype');
+        const data = await getCached('issue-types', async () => {
+          return await jiraRequest('/rest/api/2/issuetype');
+        });
         return {
           content: [
             {
@@ -561,11 +647,13 @@ async function main() {
 
     // Register list-statuses tool
     mcpServer.registerTool('jira-list-statuses', {
-      description: 'Get list of all available issue statuses in Jira',
+      description: 'Get list of all available issue statuses in Jira. Cached for 5 minutes.',
       inputSchema: {}
     }, async () => {
       try {
-        const data = await jiraRequest('/rest/api/2/status');
+        const data = await getCached('statuses', async () => {
+          return await jiraRequest('/rest/api/2/status');
+        });
         return {
           content: [
             {
@@ -890,19 +978,22 @@ async function main() {
 
     // Register get-projects tool
     mcpServer.registerTool('jira-get-projects', {
-      description: 'Get list of all accessible Jira projects with pagination. Returns key and name for each project.',
+      description: 'Get list of all accessible Jira projects with pagination. Returns key and name for each project. Cached for 5 minutes.',
       inputSchema: {
         maxResults: maxResultsSchema.optional().default(10).describe('Maximum number of projects to return (default: 10, max: 50)'),
         startAt: z.number().int().min(0).optional().default(0).describe('Starting index for pagination (default: 0)')
       }
     }, async ({ maxResults = 10, startAt = 0 }) => {
       try {
-        const params = new URLSearchParams();
-        params.append('maxResults', Math.min(maxResults, 50).toString());
-        params.append('startAt', startAt.toString());
+        const cacheKey = `projects-${maxResults}-${startAt}`;
+        const data = await getCached(cacheKey, async () => {
+          const params = new URLSearchParams();
+          params.append('maxResults', Math.min(maxResults, 50).toString());
+          params.append('startAt', startAt.toString());
 
-        const endpoint = `/rest/api/2/project?${params.toString()}`;
-        const data = await jiraRequest(endpoint);
+          const endpoint = `/rest/api/2/project?${params.toString()}`;
+          return await jiraRequest(endpoint);
+        });
 
         // Extract just key and name to minimize response size
         const projects = data.map(p => `${p.key}: ${p.name}`).join('\n');
@@ -972,6 +1063,11 @@ export {
   loadConfig,
   jiraRequest,
   isValidFilePath,
+  getCached,
+  sleep,
   HTTP_STATUS,
-  REQUEST_TIMEOUT_MS
+  REQUEST_TIMEOUT_MS,
+  CACHE_TTL_MS,
+  MAX_RETRIES,
+  RETRY_DELAY_BASE_MS
 };

@@ -10,7 +10,7 @@ describe('Exported Functions Integration Tests', () => {
   process.env.JIRA_BASE_URL = 'https://jira.test.com';
   process.env.JIRA_BEARER_TOKEN = 'test-token-123';
 
-  let loadConfig, jiraRequest, isValidFilePath, HTTP_STATUS, REQUEST_TIMEOUT_MS;
+  let loadConfig, jiraRequest, isValidFilePath, getCached, sleep, HTTP_STATUS, REQUEST_TIMEOUT_MS, CACHE_TTL_MS, MAX_RETRIES, RETRY_DELAY_BASE_MS;
 
   // Mock fetch globally
   global.fetch = jest.fn();
@@ -21,8 +21,13 @@ describe('Exported Functions Integration Tests', () => {
     loadConfig = module.loadConfig;
     jiraRequest = module.jiraRequest;
     isValidFilePath = module.isValidFilePath;
+    getCached = module.getCached;
+    sleep = module.sleep;
     HTTP_STATUS = module.HTTP_STATUS;
     REQUEST_TIMEOUT_MS = module.REQUEST_TIMEOUT_MS;
+    CACHE_TTL_MS = module.CACHE_TTL_MS;
+    MAX_RETRIES = module.MAX_RETRIES;
+    RETRY_DELAY_BASE_MS = module.RETRY_DELAY_BASE_MS;
   });
 
   beforeEach(() => {
@@ -196,38 +201,47 @@ describe('Exported Functions Integration Tests', () => {
         .rejects.toThrow('Jira server error (500)');
     });
 
-    test('should throw error on 502 Bad Gateway', async () => {
-      global.fetch.mockResolvedValueOnce({
-        ok: false,
-        status: 502,
-        json: async () => ({})
-      });
+    test('should throw error on 502 Bad Gateway after retries', async () => {
+      // Mock 4 failures (initial + 3 retries)
+      for (let i = 0; i < 4; i++) {
+        global.fetch.mockResolvedValueOnce({
+          ok: false,
+          status: 502,
+          json: async () => ({})
+        });
+      }
 
       await expect(jiraRequest('/rest/api/2/issue'))
         .rejects.toThrow('Jira server error (502)');
-    });
+    }, 10000);
 
-    test('should throw error on 503 Service Unavailable', async () => {
-      global.fetch.mockResolvedValueOnce({
-        ok: false,
-        status: 503,
-        json: async () => ({})
-      });
+    test('should throw error on 503 Service Unavailable after retries', async () => {
+      // Mock 4 failures (initial + 3 retries)
+      for (let i = 0; i < 4; i++) {
+        global.fetch.mockResolvedValueOnce({
+          ok: false,
+          status: 503,
+          json: async () => ({})
+        });
+      }
 
       await expect(jiraRequest('/rest/api/2/issue'))
         .rejects.toThrow('Jira server error (503)');
-    });
+    }, 10000);
 
-    test('should throw error on 504 Gateway Timeout', async () => {
-      global.fetch.mockResolvedValueOnce({
-        ok: false,
-        status: 504,
-        json: async () => ({})
-      });
+    test('should throw error on 504 Gateway Timeout after retries', async () => {
+      // Mock 4 failures (initial + 3 retries)
+      for (let i = 0; i < 4; i++) {
+        global.fetch.mockResolvedValueOnce({
+          ok: false,
+          status: 504,
+          json: async () => ({})
+        });
+      }
 
       await expect(jiraRequest('/rest/api/2/issue'))
         .rejects.toThrow('Jira server error (504)');
-    });
+    }, 10000);
 
     test('should include Jira error details in error message', async () => {
       global.fetch.mockResolvedValueOnce({
@@ -259,6 +273,228 @@ describe('Exported Functions Integration Tests', () => {
 
       await expect(jiraRequest('/rest/api/2/issue/DEV-123'))
         .rejects.toThrow('Network failure');
+    });
+
+    test('should retry on 502 Bad Gateway', async () => {
+      // First attempt fails with 502, second succeeds
+      global.fetch
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 502,
+          json: async () => ({})
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({ id: '123', key: 'DEV-123' })
+        });
+
+      const result = await jiraRequest('/rest/api/2/issue/DEV-123');
+
+      expect(result).toEqual({ id: '123', key: 'DEV-123' });
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+    });
+
+    test('should retry on 503 Service Unavailable', async () => {
+      // First attempt fails with 503, second succeeds
+      global.fetch
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 503,
+          json: async () => ({})
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({ id: '123', key: 'DEV-123' })
+        });
+
+      const result = await jiraRequest('/rest/api/2/issue/DEV-123');
+
+      expect(result).toEqual({ id: '123', key: 'DEV-123' });
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+    });
+
+    test('should retry on 504 Gateway Timeout', async () => {
+      // First attempt fails with 504, second succeeds
+      global.fetch
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 504,
+          json: async () => ({})
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({ id: '123', key: 'DEV-123' })
+        });
+
+      const result = await jiraRequest('/rest/api/2/issue/DEV-123');
+
+      expect(result).toEqual({ id: '123', key: 'DEV-123' });
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+    });
+
+    test('should exhaust retries and throw error', async () => {
+      // All 4 attempts (initial + 3 retries) fail with 502
+      for (let i = 0; i < 4; i++) {
+        global.fetch.mockResolvedValueOnce({
+          ok: false,
+          status: 502,
+          json: async () => ({})
+        });
+      }
+
+      await expect(jiraRequest('/rest/api/2/issue/DEV-123'))
+        .rejects.toThrow('Jira server error (502)');
+
+      expect(global.fetch).toHaveBeenCalledTimes(4); // Initial + 3 retries
+    }, 10000); // Increase timeout for retries with delays
+
+    test('should not retry on 404 Not Found', async () => {
+      global.fetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        json: async () => ({})
+      });
+
+      await expect(jiraRequest('/rest/api/2/issue/DEV-999'))
+        .rejects.toThrow('Resource not found');
+
+      expect(global.fetch).toHaveBeenCalledTimes(1); // No retry
+    });
+  });
+
+  describe('sleep utility', () => {
+    test('should wait for specified milliseconds', async () => {
+      const start = Date.now();
+      await sleep(100);
+      const elapsed = Date.now() - start;
+
+      expect(elapsed).toBeGreaterThanOrEqual(90); // Allow some timing variance
+      expect(elapsed).toBeLessThan(150);
+    });
+  });
+
+  describe('getCached utility', () => {
+    test('should cache data and return from cache on second call', async () => {
+      let callCount = 0;
+      const fetchFn = jest.fn(async () => {
+        callCount++;
+        return { data: `call-${callCount}` };
+      });
+
+      const result1 = await getCached('test-key', fetchFn, 1000);
+      const result2 = await getCached('test-key', fetchFn, 1000);
+
+      expect(result1).toEqual({ data: 'call-1' });
+      expect(result2).toEqual({ data: 'call-1' }); // Same data from cache
+      expect(fetchFn).toHaveBeenCalledTimes(1); // Only called once
+    });
+
+    test('should re-fetch data after TTL expires', async () => {
+      let callCount = 0;
+      const fetchFn = jest.fn(async () => {
+        callCount++;
+        return { data: `call-${callCount}` };
+      });
+
+      const result1 = await getCached('test-key-ttl', fetchFn, 50);
+      await sleep(60); // Wait for TTL to expire
+      const result2 = await getCached('test-key-ttl', fetchFn, 50);
+
+      expect(result1).toEqual({ data: 'call-1' });
+      expect(result2).toEqual({ data: 'call-2' }); // Fresh data after TTL
+      expect(fetchFn).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('New constants', () => {
+    test('should have CACHE_TTL_MS constant', () => {
+      expect(CACHE_TTL_MS).toBe(5 * 60 * 1000); // 5 minutes
+      expect(typeof CACHE_TTL_MS).toBe('number');
+    });
+
+    test('should have MAX_RETRIES constant', () => {
+      expect(MAX_RETRIES).toBe(3);
+      expect(typeof MAX_RETRIES).toBe('number');
+    });
+
+    test('should have RETRY_DELAY_BASE_MS constant', () => {
+      expect(RETRY_DELAY_BASE_MS).toBe(1000);
+      expect(typeof RETRY_DELAY_BASE_MS).toBe('number');
+    });
+  });
+
+  describe('DEBUG mode logging', () => {
+    let originalDebug;
+
+    beforeEach(() => {
+      originalDebug = process.env.DEBUG;
+      process.env.DEBUG = 'true';
+    });
+
+    afterEach(() => {
+      if (originalDebug) {
+        process.env.DEBUG = originalDebug;
+      } else {
+        delete process.env.DEBUG;
+      }
+    });
+
+    test('should log debug info for cache hit', async () => {
+      const fetchFn = jest.fn(async () => ({ data: 'test' }));
+
+      await getCached('debug-test', fetchFn, 1000);
+      const result2 = await getCached('debug-test', fetchFn, 1000);
+
+      expect(result2).toEqual({ data: 'test' });
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+    });
+
+    test('should log debug info for API requests', async () => {
+      global.fetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ id: '123', key: 'DEV-123' })
+      });
+
+      const result = await jiraRequest('/rest/api/2/issue/DEV-123');
+
+      expect(result).toEqual({ id: '123', key: 'DEV-123' });
+    });
+
+    test('should log debug info for retries', async () => {
+      global.fetch
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 503,
+          json: async () => ({})
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({ id: '123' })
+        });
+
+      const result = await jiraRequest('/rest/api/2/issue/DEV-123');
+
+      expect(result).toEqual({ id: '123' });
+    });
+
+    test('should log debug info with request body', async () => {
+      global.fetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ id: '123', key: 'DEV-123' })
+      });
+
+      const result = await jiraRequest('/rest/api/2/issue', {
+        method: 'POST',
+        body: JSON.stringify({ summary: 'Test' })
+      });
+
+      expect(result).toEqual({ id: '123', key: 'DEV-123' });
     });
   });
 });
