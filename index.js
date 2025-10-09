@@ -976,6 +976,165 @@ async function main() {
       }
     });
 
+    // Register get-issue-worklogs tool
+    mcpServer.registerTool('jira-get-issue-worklogs', {
+      description: 'Get all worklogs (time tracking entries) for a specific Jira issue',
+      inputSchema: {
+        issueKey: z.string().describe('Issue key (e.g., "DEV-123")')
+      }
+    }, async ({ issueKey }) => {
+      try {
+        const data = await jiraRequest(`/rest/api/2/issue/${encodeURIComponent(issueKey)}/worklog`);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(data, null, 2)
+            }
+          ]
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Error: ${error.message}`
+            }
+          ],
+          isError: true
+        };
+      }
+    });
+
+    // Register add-worklog tool
+    mcpServer.registerTool('jira-add-worklog', {
+      description: 'Add a worklog entry (time tracking) to a Jira issue',
+      inputSchema: {
+        issueKey: z.string().describe('Issue key (e.g., "DEV-123")'),
+        timeSpent: z.string().describe('Time spent in Jira format (e.g., "3h 30m", "1d", "2w 3d 4h")'),
+        comment: z.string().optional().describe('Optional comment for the worklog entry'),
+        started: z.string().optional().describe('Optional start date/time in ISO 8601 format (e.g., "2025-10-08T14:30:00.000+0000"). Defaults to now.')
+      }
+    }, async ({ issueKey, timeSpent, comment, started }) => {
+      try {
+        const worklogData = {
+          timeSpent
+        };
+
+        if (comment) {
+          worklogData.comment = comment;
+        }
+
+        if (started) {
+          worklogData.started = started;
+        }
+
+        const data = await jiraRequest(`/rest/api/2/issue/${encodeURIComponent(issueKey)}/worklog`, {
+          method: 'POST',
+          body: JSON.stringify(worklogData)
+        });
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(data, null, 2)
+            }
+          ]
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Error: ${error.message}`
+            }
+          ],
+          isError: true
+        };
+      }
+    });
+
+    // Register get-project-versions tool
+    mcpServer.registerTool('jira-get-project-versions', {
+      description: 'Get all versions (releases) for a specific Jira project. Useful for creating issues with fix versions.',
+      inputSchema: {
+        projectKey: z.string().describe('Project key (e.g., "DEV", "CORE")')
+      }
+    }, async ({ projectKey }) => {
+      try {
+        const data = await jiraRequest(`/rest/api/2/project/${encodeURIComponent(projectKey)}/versions`);
+
+        // Format for easy reading: show key info for each version
+        const versions = data.map(v => ({
+          id: v.id,
+          name: v.name,
+          archived: v.archived || false,
+          released: v.released || false,
+          releaseDate: v.releaseDate,
+          description: v.description
+        }));
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(versions, null, 2)
+            }
+          ]
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Error: ${error.message}`
+            }
+          ],
+          isError: true
+        };
+      }
+    });
+
+    // Register get-project-components tool
+    mcpServer.registerTool('jira-get-project-components', {
+      description: 'Get all components for a specific Jira project. Useful for creating issues with components.',
+      inputSchema: {
+        projectKey: z.string().describe('Project key (e.g., "DEV", "CORE")')
+      }
+    }, async ({ projectKey }) => {
+      try {
+        const data = await jiraRequest(`/rest/api/2/project/${encodeURIComponent(projectKey)}/components`);
+
+        // Format for easy reading: show key info for each component
+        const components = data.map(c => ({
+          id: c.id,
+          name: c.name,
+          description: c.description,
+          lead: c.lead?.displayName || c.lead?.name
+        }));
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(components, null, 2)
+            }
+          ]
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Error: ${error.message}`
+            }
+          ],
+          isError: true
+        };
+      }
+    });
+
     // Register get-projects tool
     mcpServer.registerTool('jira-get-projects', {
       description: 'Get list of all accessible Jira projects with pagination. Returns key and name for each project. Cached for 5 minutes.',
