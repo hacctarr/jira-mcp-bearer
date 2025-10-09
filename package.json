@@ -1,6 +1,6 @@
 {
   "name": "jira-mcp-bearer",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Model Context Protocol server for Jira Server/Data Center with Bearer token authentication",
   "type": "module",
   "main": "index.js",
