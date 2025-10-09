@@ -24,6 +24,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Updated GitHub Actions publish workflow to use OIDC for tokenless npm authentication
 - Improved workflow documentation with OIDC setup instructions
+- Refactored codebase into modular structure for better maintainability:
+  - Extracted utilities to `lib/utils.js`
+  - Extracted config loading to `lib/config.js`
+  - Extracted Jira API client to `lib/jira-client.js`
+  - Organized tools by category:
+    - `tools/issues.js` - Issue CRUD, transitions, assignments, watchers, links, attachments
+    - `tools/projects.js` - Project listing, details, versions, components
+    - `tools/worklogs.js` - Time tracking operations
+    - `tools/comments.js` - Comment operations
+    - `tools/users.js` - User operations
+    - `tools/metadata.js` - Issue types, statuses, custom fields
+  - Reduced main `index.js` from 1200+ lines to ~80 lines
 
 ## [1.0.1] - 2025-10-08
 
