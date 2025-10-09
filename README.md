@@ -48,7 +48,7 @@ All existing Jira MCP packages are designed for Jira Cloud and use Basic Authent
 - **Request Timeouts** - 30-second timeout prevents hung connections
 - **Debug Logging** - Enable with `DEBUG=true` environment variable
 
-### Available Tools (20 total)
+### Available Tools (25 total)
 
 #### Issue Operations
 1. **`jira-search-issues`** - Search issues using JQL queries
@@ -66,23 +66,29 @@ All existing Jira MCP packages are designed for Jira Cloud and use Basic Authent
 #### Project Operations
 10. **`jira-get-projects`** - List accessible projects with pagination
 11. **`jira-get-project-details`** - Get detailed project information
+12. **`jira-get-project-versions`** - Get all versions/releases for a project
+13. **`jira-get-project-components`** - Get all components for a project
+
+#### Worklog Operations (Time Tracking)
+14. **`jira-get-issue-worklogs`** - Get all worklog entries for an issue
+15. **`jira-add-worklog`** - Add time tracking entry to an issue
 
 #### User Operations
-12. **`jira-get-user`** - Get user details (omit username for current user)
+16. **`jira-get-user`** - Get user details (omit username for current user)
 
 #### Metadata Operations
-13. **`jira-list-issue-types`** - Get all available issue types (Bug, Story, Task, etc.)
-14. **`jira-list-statuses`** - Get all available issue statuses
-15. **`jira-get-issue-transitions`** - Get available transitions for an issue
-16. **`jira-get-custom-fields`** - Get all custom field definitions
+17. **`jira-list-issue-types`** - Get all available issue types (Bug, Story, Task, etc.)
+18. **`jira-list-statuses`** - Get all available issue statuses
+19. **`jira-get-issue-transitions`** - Get available transitions for an issue
+20. **`jira-get-custom-fields`** - Get all custom field definitions
 
 #### Link and Watch Operations
-17. **`jira-link-issues`** - Create a link between two issues
-18. **`jira-add-watcher`** - Add a watcher to an issue
-19. **`jira-remove-watcher`** - Remove a watcher from an issue
+21. **`jira-link-issues`** - Create a link between two issues
+22. **`jira-add-watcher`** - Add a watcher to an issue
+23. **`jira-remove-watcher`** - Remove a watcher from an issue
 
 #### Attachment Operations
-20. **`jira-upload-attachment`** - Upload a file attachment to an issue
+25. **`jira-upload-attachment`** - Upload a file attachment to an issue
 
 ## Installation
 
@@ -239,7 +245,18 @@ mcp__jira__jira-transition-issue({
 
 ```
 jira-mcp-bearer/
-├── index.js               # Main MCP server implementation
+├── index.js               # Main MCP server (imports and registers tools)
+├── lib/                   # Core libraries
+│   ├── config.js          # Configuration loading
+│   ├── jira-client.js     # Jira API request handler with retry logic
+│   └── utils.js           # Utilities, validation schemas, caching
+├── tools/                 # Tool modules organized by category
+│   ├── issues.js          # Issue CRUD, transitions, assignments (13 tools)
+│   ├── projects.js        # Project operations (4 tools)
+│   ├── worklogs.js        # Time tracking operations (2 tools)
+│   ├── comments.js        # Comment operations (2 tools)
+│   ├── users.js           # User operations (1 tool)
+│   └── metadata.js        # Issue types, statuses, fields (3 tools)
 ├── setup.js               # Interactive setup script
 ├── package.json           # Project dependencies
 ├── config.json            # Local configuration (gitignored)
@@ -271,9 +288,13 @@ npm run test:coverage
 
 ### Adding New Tools
 
-To add a new tool, register it in the `main()` function in `index.js`:
+Tools are organized by category in the `tools/` directory. To add a new tool:
+
+1. Choose the appropriate category file (e.g., `tools/issues.js` for issue-related tools)
+2. Add your tool registration using this template:
 
 ```javascript
+// In tools/issues.js (or appropriate category file)
 mcpServer.registerTool('jira-tool-name', {
   description: 'Tool description',
   inputSchema: {
@@ -281,7 +302,7 @@ mcpServer.registerTool('jira-tool-name', {
   }
 }, async ({ param }) => {
   try {
-    const data = await jiraRequest('/rest/api/2/endpoint');
+    const data = await jiraRequest(baseUrl, bearerToken, '/rest/api/2/endpoint');
     return {
       content: [{
         type: 'text',
@@ -298,6 +319,14 @@ mcpServer.registerTool('jira-tool-name', {
     };
   }
 });
+```
+
+3. If creating a new category, create a new file in `tools/` and register it in `index.js`:
+
+```javascript
+import { registerYourTools } from './tools/your-category.js';
+// ...
+registerYourTools(mcpServer, boundJiraRequest, JIRA_BASE_URL, JIRA_BEARER_TOKEN);
 ```
 
 ### Testing the MCP Server
@@ -359,7 +388,10 @@ This server uses Jira REST API v2:
 - `/rest/api/2/search` - Search issues with JQL
 - `/rest/api/2/issue/{issueKey}` - Get/update/delete issue
 - `/rest/api/2/issue` - Create issue
+- `/rest/api/2/issue/{issueKey}/worklog` - Get/add worklogs (time tracking)
 - `/rest/api/2/project` - List projects
+- `/rest/api/2/project/{projectKey}/versions` - Get project versions
+- `/rest/api/2/project/{projectKey}/components` - Get project components
 - `/rest/api/2/user` - Get user details
 - `/rest/api/2/field` - Get custom fields
 - `/rest/api/2/issuetype` - List issue types
@@ -381,6 +413,15 @@ MIT
 hacctarr (triblegroup@gmail.com)
 
 ## Version History
+
+See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
+
+### Latest Changes
+
+- Added worklog (time tracking) operations
+- Added project versions and components tools
+- Refactored into modular structure (lib/ and tools/ directories)
+- Reduced main index.js from 1200+ lines to ~80 lines
 
 ### 1.0.0
 
