@@ -18,35 +18,28 @@ Runs when you create a GitHub release.
 
 **What it does:**
 - Runs tests before publishing
-- Publishes to npm with provenance
+- Publishes to npm with provenance using OIDC
 - Only runs on release (manual trigger)
 
-**Setup Required:** Add npm token to GitHub secrets
+**Setup Required:** Configure npm for OIDC authentication
 
 ---
 
-## Setup: npm Publishing
+## Setup: npm Publishing with OIDC
 
-To enable automatic npm publishing, you need to add your npm token to GitHub:
+The publish workflow uses **OpenID Connect (OIDC)** for secure, tokenless authentication with npm.
 
-### Step 1: Create npm Access Token
+### Step 1: Configure npm for OIDC
 
 1. Login to npm: https://www.npmjs.com/login
-2. Go to Access Tokens: https://www.npmjs.com/settings/YOUR_USERNAME/tokens
-3. Click "Generate New Token" → "Classic Token"
-4. Select type: **"Automation"**
-5. Copy the token (starts with `npm_...`)
+2. Go to package settings: https://www.npmjs.com/package/jira-mcp-bearer/access
+3. Scroll to "Publishing Access"
+4. Enable "Require two-factor authentication or automation tokens"
+5. Under "GitHub Actions", click "Add"
+6. Add subject: `repo:hacctarr/jira-mcp-bearer:ref:refs/tags/*`
+7. Save changes
 
-### Step 2: Add Token to GitHub Secrets
-
-1. Go to your repository: https://github.com/hacctarr/jira-mcp-bearer
-2. Go to Settings → Secrets and variables → Actions
-3. Click "New repository secret"
-4. Name: `NPM_TOKEN`
-5. Value: Paste your npm token
-6. Click "Add secret"
-
-### Step 3: Test the Workflow
+### Step 2: Test the Workflow
 
 1. Make sure your code is committed and pushed
 2. Create a new release:
@@ -120,12 +113,13 @@ Coverage badges will appear on PRs automatically.
 
 ### Publish workflow fails with 403
 
-**Problem:** npm token is invalid or expired
+**Problem:** npm OIDC not configured or subject mismatch
 
 **Solution:**
-1. Generate new npm token (Automation type)
-2. Update `NPM_TOKEN` secret in GitHub
-3. Re-run the workflow
+1. Verify OIDC is enabled on npm package settings
+2. Check subject matches: `repo:hacctarr/jira-mcp-bearer:ref:refs/tags/*`
+3. Ensure release tag format is correct (e.g., v1.0.2)
+4. Re-run the workflow
 
 ### Tests fail in CI but pass locally
 
@@ -149,8 +143,8 @@ Coverage badges will appear on PRs automatically.
 
 ## Security Notes
 
+- ✅ Uses OIDC for tokenless authentication (no secrets to rotate)
 - ✅ Uses `npm publish --provenance` for supply chain security
-- ✅ npm token scoped to Automation (read/write packages only)
-- ✅ Token stored in GitHub encrypted secrets
+- ✅ GitHub Actions automatically handles authentication
 - ✅ Tests run before publishing (prevents bad releases)
-- ⚠️ Rotate npm token every 90 days (good practice)
+- ✅ Subject-based authorization restricts publish to specific tags only
