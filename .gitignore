@@ -7,6 +7,7 @@ yarn-error.log*
 # Local configuration files
 config.json
 CLAUDE.local.md
+.github/workflows/PROMOTION.md
 
 # IDE and editor files
 .claude/
