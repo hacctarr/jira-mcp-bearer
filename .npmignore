@@ -1,0 +1,25 @@
+# Test files
+__tests__/
+*.test.js
+jest.config.js
+coverage/
+
+# Local configuration (users should create their own)
+config.json
+CLAUDE.local.md
+
+# Development files
+.git/
+.github/
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
+
+# Documentation not needed in package
+START_HERE.md

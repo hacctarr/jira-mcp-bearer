@@ -3,13 +3,27 @@
   "version": "1.0.0",
   "description": "Model Context Protocol server for Jira Server/Data Center with Bearer token authentication",
   "type": "module",
+  "main": "index.js",
   "bin": {
     "jira-mcp-bearer": "./index.js"
   },
+  "files": [
+    "index.js",
+    "setup.js",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "QUICKSTART.md",
+    "EXAMPLES.md"
+  ],
   "scripts": {
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
     "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
-    "test:coverage": "NODE_OPTIONS=--experimental-vm-modules jest --coverage"
+    "test:coverage": "NODE_OPTIONS=--experimental-vm-modules jest --coverage",
+    "prepublishOnly": "npm test"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.19.1",
@@ -23,7 +37,11 @@
     "jira",
     "bearer-auth",
     "jira-server",
-    "model-context-protocol"
+    "jira-data-center",
+    "model-context-protocol",
+    "claude-code",
+    "anthropic",
+    "ai-integration"
   ],
   "author": {
     "name": "hacctarr",
@@ -33,5 +51,9 @@
     "type": "git",
     "url": "https://github.com/hacctarr/jira-mcp-bearer.git"
   },
+  "bugs": {
+    "url": "https://github.com/hacctarr/jira-mcp-bearer/issues"
+  },
+  "homepage": "https://github.com/hacctarr/jira-mcp-bearer#readme",
   "license": "MIT"
 }

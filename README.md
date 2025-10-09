@@ -5,14 +5,17 @@ A Model Context Protocol (MCP) server that provides integration with Jira Server
 ## Quick Start
 
 ```bash
-# 1. Install dependencies
-npm install
+# 1. Install from npm
+npm install -g jira-mcp-bearer
 
 # 2. Run setup (interactive)
-./setup.js
+npx jira-mcp-bearer setup.js
+# Or if installed globally: jira-mcp-bearer setup.js
 
-# 3. Add to Claude Code
-claude mcp add jira $(pwd)/index.js
+# 3. Add to Claude Code (setup.js will provide the exact command)
+claude mcp add jira /path/to/jira-mcp-bearer/index.js \
+  -e JIRA_BASE_URL=https://your-jira.com \
+  -e JIRA_BEARER_TOKEN=your-token
 
 # 4. Restart Claude Code to load the MCP
 
@@ -86,15 +89,27 @@ curl -H "Authorization: Bearer <token>" https://your-jira-server.com/rest/api/2/
 - npm or yarn
 - Jira Server or Data Center with REST API v2
 
-### Install Dependencies
+### Quick Install (from npm)
 
 ```bash
-npm install
+# Install globally
+npm install -g jira-mcp-bearer
+
+# Or use npx (no installation needed)
+npx jira-mcp-bearer
 ```
 
-### Make Executable
+### Install from Source
 
 ```bash
+# Clone the repository
+git clone https://github.com/hacctarr/jira-mcp-bearer.git
+cd jira-mcp-bearer
+
+# Install dependencies
+npm install
+
+# Make executable
 chmod +x index.js setup.js
 ```
 
