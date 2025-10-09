@@ -63,7 +63,42 @@ async function jiraRequest(endpoint, options = {}) {
   });
 
   if (!response.ok) {
-    throw new Error(`Jira API error: ${response.status} ${response.statusText}`);
+    // Specific error messages based on status code
+    let errorMessage;
+    switch (response.status) {
+      case 401:
+        errorMessage = 'Authentication failed. Your Bearer token is invalid or expired.';
+        break;
+      case 403:
+        errorMessage = 'Permission denied. Your Bearer token does not have access to this resource.';
+        break;
+      case 404:
+        errorMessage = 'Resource not found. Check that the issue key, project key, or endpoint is correct.';
+        break;
+      case 429:
+        errorMessage = 'Rate limit exceeded. Please wait before making more requests.';
+        break;
+      case 500:
+      case 502:
+      case 503:
+      case 504:
+        errorMessage = `Jira server error (${response.status}). The server may be temporarily unavailable.`;
+        break;
+      default:
+        errorMessage = `Jira API error: ${response.status} ${response.statusText}`;
+    }
+
+    // Try to get more details from response body
+    try {
+      const errorBody = await response.json();
+      if (errorBody.errorMessages && errorBody.errorMessages.length > 0) {
+        errorMessage += `\nDetails: ${errorBody.errorMessages.join(', ')}`;
+      }
+    } catch {
+      // Ignore JSON parse errors
+    }
+
+    throw new Error(errorMessage);
   }
 
   if (response.status === 204) {

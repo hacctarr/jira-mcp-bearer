@@ -56,10 +56,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Enhanced error handling with specific messages for different HTTP status codes
+- Detailed error messages that include Jira API error details when available
+
 ### Planned Features
 
 - Field filtering to reduce token usage
-- Better error handling with retry logic
+- Retry logic for transient failures
 - Caching for frequently accessed data
 
 ### Under Consideration
