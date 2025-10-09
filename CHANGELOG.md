@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Issue filtering helper tools:
+  - `jira-get-my-issues` - Get issues assigned to current user with optional status/project filters
+  - `jira-get-recent-issues` - Get recently updated or viewed issues
 - Worklog (time tracking) support:
   - `jira-get-issue-worklogs` - Get all worklog entries for an issue
   - `jira-add-worklog` - Add time tracking entries with time spent, comment, and start date

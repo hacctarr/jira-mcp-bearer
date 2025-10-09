@@ -48,47 +48,49 @@ All existing Jira MCP packages are designed for Jira Cloud and use Basic Authent
 - **Request Timeouts** - 30-second timeout prevents hung connections
 - **Debug Logging** - Enable with `DEBUG=true` environment variable
 
-### Available Tools (25 total)
+### Available Tools (27 total)
 
 #### Issue Operations
-1. **`jira-search-issues`** - Search issues using JQL queries
-2. **`jira-get-issue`** - Get detailed information about a specific issue
-3. **`jira-create-issue`** - Create a new issue
-4. **`jira-update-issue`** - Update an existing issue
-5. **`jira-delete-issue`** - Delete an issue permanently
-6. **`jira-transition-issue`** - Change issue status/workflow state
-7. **`jira-assign-issue`** - Assign or unassign an issue
+1. **`jira-get-my-issues`** - Get issues assigned to current user (with optional filters)
+2. **`jira-get-recent-issues`** - Get recently updated or viewed issues
+3. **`jira-search-issues`** - Search issues using JQL queries
+4. **`jira-get-issue`** - Get detailed information about a specific issue
+5. **`jira-create-issue`** - Create a new issue
+6. **`jira-update-issue`** - Update an existing issue
+7. **`jira-delete-issue`** - Delete an issue permanently
+8. **`jira-transition-issue`** - Change issue status/workflow state
+9. **`jira-assign-issue`** - Assign or unassign an issue
 
 #### Comment Operations
-8. **`jira-get-issue-comments`** - Get all comments for an issue
-9. **`jira-add-comment`** - Add a comment to an issue
+10. **`jira-get-issue-comments`** - Get all comments for an issue
+11. **`jira-add-comment`** - Add a comment to an issue
 
 #### Project Operations
-10. **`jira-get-projects`** - List accessible projects with pagination
-11. **`jira-get-project-details`** - Get detailed project information
-12. **`jira-get-project-versions`** - Get all versions/releases for a project
-13. **`jira-get-project-components`** - Get all components for a project
+12. **`jira-get-projects`** - List accessible projects with pagination
+13. **`jira-get-project-details`** - Get detailed project information
+14. **`jira-get-project-versions`** - Get all versions/releases for a project
+15. **`jira-get-project-components`** - Get all components for a project
 
 #### Worklog Operations (Time Tracking)
-14. **`jira-get-issue-worklogs`** - Get all worklog entries for an issue
-15. **`jira-add-worklog`** - Add time tracking entry to an issue
+16. **`jira-get-issue-worklogs`** - Get all worklog entries for an issue
+17. **`jira-add-worklog`** - Add time tracking entry to an issue
 
 #### User Operations
-16. **`jira-get-user`** - Get user details (omit username for current user)
+18. **`jira-get-user`** - Get user details (omit username for current user)
 
 #### Metadata Operations
-17. **`jira-list-issue-types`** - Get all available issue types (Bug, Story, Task, etc.)
-18. **`jira-list-statuses`** - Get all available issue statuses
-19. **`jira-get-issue-transitions`** - Get available transitions for an issue
-20. **`jira-get-custom-fields`** - Get all custom field definitions
+19. **`jira-list-issue-types`** - Get all available issue types (Bug, Story, Task, etc.)
+20. **`jira-list-statuses`** - Get all available issue statuses
+21. **`jira-get-issue-transitions`** - Get available transitions for an issue
+22. **`jira-get-custom-fields`** - Get all custom field definitions
 
 #### Link and Watch Operations
-21. **`jira-link-issues`** - Create a link between two issues
-22. **`jira-add-watcher`** - Add a watcher to an issue
-23. **`jira-remove-watcher`** - Remove a watcher from an issue
+23. **`jira-link-issues`** - Create a link between two issues
+24. **`jira-add-watcher`** - Add a watcher to an issue
+25. **`jira-remove-watcher`** - Remove a watcher from an issue
 
 #### Attachment Operations
-25. **`jira-upload-attachment`** - Upload a file attachment to an issue
+26. **`jira-upload-attachment`** - Upload a file attachment to an issue
 
 ## Installation
 
@@ -251,7 +253,7 @@ jira-mcp-bearer/
 │   ├── jira-client.js     # Jira API request handler with retry logic
 │   └── utils.js           # Utilities, validation schemas, caching
 ├── tools/                 # Tool modules organized by category
-│   ├── issues.js          # Issue CRUD, transitions, assignments (13 tools)
+│   ├── issues.js          # Issue operations including filtering helpers (15 tools)
 │   ├── projects.js        # Project operations (4 tools)
 │   ├── worklogs.js        # Time tracking operations (2 tools)
 │   ├── comments.js        # Comment operations (2 tools)
@@ -418,6 +420,7 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
 
 ### Latest Changes
 
+- Added issue filtering helper tools (get-my-issues, get-recent-issues)
 - Added worklog (time tracking) operations
 - Added project versions and components tools
 - Refactored into modular structure (lib/ and tools/ directories)

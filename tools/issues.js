@@ -11,6 +11,97 @@ import { basename } from 'path';
  * @param {string} bearerToken - Bearer token
  */
 export function registerIssueTools(mcpServer, jiraRequest, baseUrl, bearerToken) {
+  // Get my issues (shorthand for assignee = currentUser())
+  mcpServer.registerTool('jira-get-my-issues', {
+    description: 'Get issues assigned to the current user. Shorthand for "assignee = currentUser()" JQL query.',
+    inputSchema: {
+      maxResults: maxResultsSchema.optional().default(50).describe('Maximum number of results to return (max 50)'),
+      startAt: z.number().int().min(0).optional().default(0).describe('Starting index for pagination (default: 0)'),
+      status: z.string().optional().describe('Optional status filter (e.g., "Open", "In Progress")'),
+      project: z.string().optional().describe('Optional project key filter (e.g., "DEV")'),
+      fields: z.array(z.string()).optional().describe('Optional array of field names to return (e.g., ["summary", "status", "priority"])')
+    }
+  }, async ({ maxResults, startAt, status, project, fields }) => {
+    try {
+      // Build JQL query
+      let jql = 'assignee = currentUser()';
+
+      if (status) {
+        jql += ` AND status = "${status}"`;
+      }
+
+      if (project) {
+        jql += ` AND project = ${project}`;
+      }
+
+      jql += ' ORDER BY updated DESC';
+
+      let endpoint = `/rest/api/2/search?jql=${encodeURIComponent(jql)}&maxResults=${maxResults}&startAt=${startAt}`;
+      if (fields && fields.length > 0) {
+        endpoint += `&fields=${fields.join(',')}`;
+      }
+
+      const data = await jiraRequest(baseUrl, bearerToken, endpoint);
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify(data, null, 2)
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text',
+          text: `Error: ${error.message}`
+        }],
+        isError: true
+      };
+    }
+  });
+
+  // Get recent issues
+  mcpServer.registerTool('jira-get-recent-issues', {
+    description: 'Get recently updated or viewed issues for the current user',
+    inputSchema: {
+      maxResults: maxResultsSchema.optional().default(20).describe('Maximum number of results to return (max 50)'),
+      type: z.enum(['updated', 'viewed']).optional().default('updated').describe('Type of recency: "updated" (recently updated) or "viewed" (recently viewed by you)'),
+      fields: z.array(z.string()).optional().describe('Optional array of field names to return (e.g., ["summary", "status", "updated"])')
+    }
+  }, async ({ maxResults, type, fields }) => {
+    try {
+      let jql;
+
+      if (type === 'viewed') {
+        // Issues recently viewed by current user
+        jql = 'issue in issueHistory() ORDER BY lastViewed DESC';
+      } else {
+        // Recently updated issues (either assigned to user or watched by user)
+        jql = '(assignee = currentUser() OR watcher = currentUser()) ORDER BY updated DESC';
+      }
+
+      let endpoint = `/rest/api/2/search?jql=${encodeURIComponent(jql)}&maxResults=${maxResults}`;
+      if (fields && fields.length > 0) {
+        endpoint += `&fields=${fields.join(',')}`;
+      }
+
+      const data = await jiraRequest(baseUrl, bearerToken, endpoint);
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify(data, null, 2)
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text',
+          text: `Error: ${error.message}`
+        }],
+        isError: true
+      };
+    }
+  });
+
   // Search issues
   mcpServer.registerTool('jira-search-issues', {
     description: 'Search for Jira issues using JQL (Jira Query Language)',
