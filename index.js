@@ -29,16 +29,13 @@ async function main() {
       }
     });
 
-    // Create bound jiraRequest function for tool modules
-    const boundJiraRequest = jiraRequest.bind(null, JIRA_BASE_URL, JIRA_BEARER_TOKEN);
-
     // Register all tools by category
-    registerIssueTools(mcpServer, boundJiraRequest, JIRA_BASE_URL, JIRA_BEARER_TOKEN);
-    registerProjectTools(mcpServer, boundJiraRequest, JIRA_BASE_URL, JIRA_BEARER_TOKEN);
-    registerWorklogTools(mcpServer, boundJiraRequest, JIRA_BASE_URL, JIRA_BEARER_TOKEN);
-    registerCommentTools(mcpServer, boundJiraRequest, JIRA_BASE_URL, JIRA_BEARER_TOKEN);
-    registerUserTools(mcpServer, boundJiraRequest, JIRA_BASE_URL, JIRA_BEARER_TOKEN);
-    registerMetadataTools(mcpServer, boundJiraRequest, JIRA_BASE_URL, JIRA_BEARER_TOKEN);
+    registerIssueTools(mcpServer, jiraRequest, JIRA_BASE_URL, JIRA_BEARER_TOKEN);
+    registerProjectTools(mcpServer, jiraRequest, JIRA_BASE_URL, JIRA_BEARER_TOKEN);
+    registerWorklogTools(mcpServer, jiraRequest, JIRA_BASE_URL, JIRA_BEARER_TOKEN);
+    registerCommentTools(mcpServer, jiraRequest, JIRA_BASE_URL, JIRA_BEARER_TOKEN);
+    registerUserTools(mcpServer, jiraRequest, JIRA_BASE_URL, JIRA_BEARER_TOKEN);
+    registerMetadataTools(mcpServer, jiraRequest, JIRA_BASE_URL, JIRA_BEARER_TOKEN);
 
     // Set up stdio transport
     const transport = new StdioServerTransport();

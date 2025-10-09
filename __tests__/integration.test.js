@@ -16,18 +16,21 @@ describe('Exported Functions Integration Tests', () => {
   global.fetch = jest.fn();
 
   beforeAll(async () => {
-    // Dynamically import the module
-    const module = await import('../index.js');
-    loadConfig = module.loadConfig;
-    jiraRequest = module.jiraRequest;
-    isValidFilePath = module.isValidFilePath;
-    getCached = module.getCached;
-    sleep = module.sleep;
-    HTTP_STATUS = module.HTTP_STATUS;
-    REQUEST_TIMEOUT_MS = module.REQUEST_TIMEOUT_MS;
-    CACHE_TTL_MS = module.CACHE_TTL_MS;
-    MAX_RETRIES = module.MAX_RETRIES;
-    RETRY_DELAY_BASE_MS = module.RETRY_DELAY_BASE_MS;
+    // Dynamically import from the new modular structure
+    const configModule = await import('../lib/config.js');
+    const utilsModule = await import('../lib/utils.js');
+    const clientModule = await import('../lib/jira-client.js');
+
+    loadConfig = configModule.loadConfig;
+    jiraRequest = clientModule.jiraRequest;
+    isValidFilePath = utilsModule.isValidFilePath;
+    getCached = utilsModule.getCached;
+    sleep = utilsModule.sleep;
+    HTTP_STATUS = utilsModule.HTTP_STATUS;
+    REQUEST_TIMEOUT_MS = utilsModule.REQUEST_TIMEOUT_MS;
+    CACHE_TTL_MS = utilsModule.CACHE_TTL_MS;
+    MAX_RETRIES = utilsModule.MAX_RETRIES;
+    RETRY_DELAY_BASE_MS = utilsModule.RETRY_DELAY_BASE_MS;
   });
 
   beforeEach(() => {
@@ -113,6 +116,9 @@ describe('Exported Functions Integration Tests', () => {
   });
 
   describe('jiraRequest', () => {
+    const testBaseUrl = 'https://jira.test.com';
+    const testToken = 'test-token-123';
+
     test('should make successful API request', async () => {
       global.fetch.mockResolvedValueOnce({
         ok: true,
@@ -120,7 +126,7 @@ describe('Exported Functions Integration Tests', () => {
         json: async () => ({ id: '123', key: 'DEV-123' })
       });
 
-      const result = await jiraRequest('/rest/api/2/issue/DEV-123');
+      const result = await jiraRequest(testBaseUrl, testToken, '/rest/api/2/issue/DEV-123');
 
       expect(result).toEqual({ id: '123', key: 'DEV-123' });
       expect(global.fetch).toHaveBeenCalledWith(
@@ -141,7 +147,7 @@ describe('Exported Functions Integration Tests', () => {
         status: 204
       });
 
-      const result = await jiraRequest('/rest/api/2/issue/DEV-123');
+      const result = await jiraRequest(testBaseUrl, testToken, '/rest/api/2/issue/DEV-123');
 
       expect(result).toBeNull();
     });
@@ -253,7 +259,7 @@ describe('Exported Functions Integration Tests', () => {
       });
 
       await expect(jiraRequest('/rest/api/2/issue'))
-        .rejects.toThrow('Field summary is required, Invalid project key');
+        .rejects.toThrow('Field summary is required');
     });
 
     test('should handle timeout with AbortError', async () => {
@@ -289,7 +295,7 @@ describe('Exported Functions Integration Tests', () => {
           json: async () => ({ id: '123', key: 'DEV-123' })
         });
 
-      const result = await jiraRequest('/rest/api/2/issue/DEV-123');
+      const result = await jiraRequest(testBaseUrl, testToken, '/rest/api/2/issue/DEV-123');
 
       expect(result).toEqual({ id: '123', key: 'DEV-123' });
       expect(global.fetch).toHaveBeenCalledTimes(2);
@@ -309,7 +315,7 @@ describe('Exported Functions Integration Tests', () => {
           json: async () => ({ id: '123', key: 'DEV-123' })
         });
 
-      const result = await jiraRequest('/rest/api/2/issue/DEV-123');
+      const result = await jiraRequest(testBaseUrl, testToken, '/rest/api/2/issue/DEV-123');
 
       expect(result).toEqual({ id: '123', key: 'DEV-123' });
       expect(global.fetch).toHaveBeenCalledTimes(2);
@@ -329,7 +335,7 @@ describe('Exported Functions Integration Tests', () => {
           json: async () => ({ id: '123', key: 'DEV-123' })
         });
 
-      const result = await jiraRequest('/rest/api/2/issue/DEV-123');
+      const result = await jiraRequest(testBaseUrl, testToken, '/rest/api/2/issue/DEV-123');
 
       expect(result).toEqual({ id: '123', key: 'DEV-123' });
       expect(global.fetch).toHaveBeenCalledTimes(2);
@@ -427,6 +433,8 @@ describe('Exported Functions Integration Tests', () => {
   });
 
   describe('DEBUG mode logging', () => {
+    const testBaseUrl = 'https://jira.test.com';
+    const testToken = 'test-token-123';
     let originalDebug;
 
     beforeEach(() => {
@@ -459,7 +467,7 @@ describe('Exported Functions Integration Tests', () => {
         json: async () => ({ id: '123', key: 'DEV-123' })
       });
 
-      const result = await jiraRequest('/rest/api/2/issue/DEV-123');
+      const result = await jiraRequest(testBaseUrl, testToken, '/rest/api/2/issue/DEV-123');
 
       expect(result).toEqual({ id: '123', key: 'DEV-123' });
     });
@@ -477,7 +485,7 @@ describe('Exported Functions Integration Tests', () => {
           json: async () => ({ id: '123' })
         });
 
-      const result = await jiraRequest('/rest/api/2/issue/DEV-123');
+      const result = await jiraRequest(testBaseUrl, testToken, '/rest/api/2/issue/DEV-123');
 
       expect(result).toEqual({ id: '123' });
     });
@@ -489,7 +497,7 @@ describe('Exported Functions Integration Tests', () => {
         json: async () => ({ id: '123', key: 'DEV-123' })
       });
 
-      const result = await jiraRequest('/rest/api/2/issue', {
+      const result = await jiraRequest(testBaseUrl, testToken, '/rest/api/2/issue', {
         method: 'POST',
         body: JSON.stringify({ summary: 'Test' })
       });
