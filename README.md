@@ -1,5 +1,11 @@
 # Jira MCP Server (Bearer Token Authentication)
 
+[![npm version](https://img.shields.io/npm/v/jira-mcp-bearer.svg)](https://www.npmjs.com/package/jira-mcp-bearer)
+[![npm downloads](https://img.shields.io/npm/dm/jira-mcp-bearer.svg)](https://www.npmjs.com/package/jira-mcp-bearer)
+[![GitHub stars](https://img.shields.io/github/stars/hacctarr/jira-mcp-bearer.svg)](https://github.com/hacctarr/jira-mcp-bearer/stargazers)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Test Coverage](https://img.shields.io/badge/coverage-90%25-brightgreen.svg)](https://github.com/hacctarr/jira-mcp-bearer)
+
 A Model Context Protocol (MCP) server that provides integration with Jira Server and Data Center using Bearer token authentication. Built for enterprise Jira instances that require Bearer token authentication instead of the Basic Auth used by Jira Cloud.
 
 ## Quick Start
@@ -30,19 +36,6 @@ That's it! No bash, no environment variables needed. Claude calls the MCP tools 
 ## Why This Exists
 
 All existing Jira MCP packages are designed for Jira Cloud and use Basic Authentication (email + API token). Many Jira Server and Data Center instances require Bearer token authentication, which none of the npm packages support. This custom MCP server bridges that gap.
-
-### Authentication Verification
-
-Testing showed the authentication requirements:
-```bash
-# Basic Auth - FAILS with 401
-curl -u email:token https://your-jira-server.com/rest/api/2/myself
-# Returns: "Basic Authentication Failure - Reason : AUTHENTICATED_FAILED"
-
-# Bearer Token - WORKS
-curl -H "Authorization: Bearer <token>" https://your-jira-server.com/rest/api/2/myself
-# Returns: 200 OK with user data
-```
 
 ## Features
 
