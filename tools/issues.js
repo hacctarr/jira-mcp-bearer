@@ -19,9 +19,10 @@ export function registerIssueTools(mcpServer, jiraRequest, baseUrl, bearerToken)
       startAt: z.number().int().min(0).optional().default(0).describe('Starting index for pagination (default: 0)'),
       status: z.string().optional().describe('Optional status filter (e.g., "Open", "In Progress")'),
       project: z.string().optional().describe('Optional project key filter (e.g., "DEV")'),
-      fields: z.array(z.string()).optional().describe('Optional array of field names to return (e.g., ["summary", "status", "priority"])')
+      fields: z.array(z.string()).optional().describe('Optional array of field names to return (e.g., ["summary", "status", "priority"]). If omitted, returns all fields.'),
+      format: z.enum(['json', 'concise']).optional().default('json').describe('Response format: "json" returns full JSON (default), "concise" returns readable text with essential fields only (recommended for large result sets to avoid token limits)')
     }
-  }, async ({ maxResults, startAt, status, project, fields }) => {
+  }, async ({ maxResults, startAt, status, project, fields, format }) => {
     try {
       // Build JQL query
       let jql = 'assignee = currentUser()';
@@ -36,12 +37,43 @@ export function registerIssueTools(mcpServer, jiraRequest, baseUrl, bearerToken)
 
       jql += ' ORDER BY updated DESC';
 
+      // Use concise format with essential fields if requested
+      const useConciseFormat = format === 'concise' && (!fields || fields.length === 0);
+      const defaultFields = ['key', 'summary', 'status', 'assignee', 'priority', 'updated', 'created'];
+
       let endpoint = `/rest/api/2/search?jql=${encodeURIComponent(jql)}&maxResults=${maxResults}&startAt=${startAt}`;
-      if (fields && fields.length > 0) {
+      if (useConciseFormat) {
+        endpoint += `&fields=${defaultFields.join(',')}`;
+      } else if (fields && fields.length > 0) {
         endpoint += `&fields=${fields.join(',')}`;
       }
+      // If neither, don't add fields param (returns all fields - original behavior)
 
       const data = await jiraRequest(baseUrl, bearerToken, endpoint);
+
+      // Format concisely when format=concise
+      if (useConciseFormat) {
+        const issues = data.issues.map(issue => {
+          const status = issue.fields.status?.name || 'N/A';
+          const assignee = issue.fields.assignee?.displayName || 'Unassigned';
+          const priority = issue.fields.priority?.name || 'N/A';
+          const updated = issue.fields.updated ? new Date(issue.fields.updated).toISOString().split('T')[0] : 'N/A';
+          const created = issue.fields.created ? new Date(issue.fields.created).toISOString().split('T')[0] : 'N/A';
+
+          return `${issue.key}: ${issue.fields.summary}\n  Status: ${status} | Assignee: ${assignee} | Priority: ${priority}\n  Created: ${created} | Updated: ${updated}`;
+        }).join('\n\n');
+
+        const summary = `Total: ${data.total}, Returned: ${data.issues.length}, StartAt: ${startAt}, MaxResults: ${maxResults}`;
+
+        return {
+          content: [{
+            type: 'text',
+            text: `${summary}\n\n${issues}`
+          }]
+        };
+      }
+
+      // Return full JSON when custom fields are requested
       return {
         content: [{
           type: 'text',
@@ -65,9 +97,10 @@ export function registerIssueTools(mcpServer, jiraRequest, baseUrl, bearerToken)
     inputSchema: {
       maxResults: maxResultsSchema.optional().default(20).describe('Maximum number of results to return (max 50)'),
       type: z.enum(['updated', 'viewed']).optional().default('updated').describe('Type of recency: "updated" (recently updated) or "viewed" (recently viewed by you)'),
-      fields: z.array(z.string()).optional().describe('Optional array of field names to return (e.g., ["summary", "status", "updated"])')
+      fields: z.array(z.string()).optional().describe('Optional array of field names to return (e.g., ["summary", "status", "updated"]). If omitted, returns all fields.'),
+      format: z.enum(['json', 'concise']).optional().default('json').describe('Response format: "json" returns full JSON (default), "concise" returns readable text with essential fields only (recommended for large result sets to avoid token limits)')
     }
-  }, async ({ maxResults, type, fields }) => {
+  }, async ({ maxResults, type, fields, format }) => {
     try {
       let jql;
 
@@ -79,12 +112,43 @@ export function registerIssueTools(mcpServer, jiraRequest, baseUrl, bearerToken)
         jql = '(assignee = currentUser() OR watcher = currentUser()) ORDER BY updated DESC';
       }
 
+      // Use concise format with essential fields if requested
+      const useConciseFormat = format === 'concise' && (!fields || fields.length === 0);
+      const defaultFields = ['key', 'summary', 'status', 'assignee', 'priority', 'updated', 'created'];
+
       let endpoint = `/rest/api/2/search?jql=${encodeURIComponent(jql)}&maxResults=${maxResults}`;
-      if (fields && fields.length > 0) {
+      if (useConciseFormat) {
+        endpoint += `&fields=${defaultFields.join(',')}`;
+      } else if (fields && fields.length > 0) {
         endpoint += `&fields=${fields.join(',')}`;
       }
+      // If neither, don't add fields param (returns all fields - original behavior)
 
       const data = await jiraRequest(baseUrl, bearerToken, endpoint);
+
+      // Format concisely when format=concise
+      if (useConciseFormat) {
+        const issues = data.issues.map(issue => {
+          const status = issue.fields.status?.name || 'N/A';
+          const assignee = issue.fields.assignee?.displayName || 'Unassigned';
+          const priority = issue.fields.priority?.name || 'N/A';
+          const updated = issue.fields.updated ? new Date(issue.fields.updated).toISOString().split('T')[0] : 'N/A';
+          const created = issue.fields.created ? new Date(issue.fields.created).toISOString().split('T')[0] : 'N/A';
+
+          return `${issue.key}: ${issue.fields.summary}\n  Status: ${status} | Assignee: ${assignee} | Priority: ${priority}\n  Created: ${created} | Updated: ${updated}`;
+        }).join('\n\n');
+
+        const summary = `Total: ${data.total}, Returned: ${data.issues.length}, StartAt: 0, MaxResults: ${maxResults}`;
+
+        return {
+          content: [{
+            type: 'text',
+            text: `${summary}\n\n${issues}`
+          }]
+        };
+      }
+
+      // Return full JSON when custom fields are requested
       return {
         content: [{
           type: 'text',
@@ -109,15 +173,48 @@ export function registerIssueTools(mcpServer, jiraRequest, baseUrl, bearerToken)
       jql: jqlSchema.describe('JQL query string (e.g., "project = CORE AND status = Open")'),
       maxResults: maxResultsSchema.optional().default(50).describe('Maximum number of results to return (max 50)'),
       startAt: z.number().int().min(0).optional().default(0).describe('Starting index for pagination (default: 0)'),
-      fields: z.array(z.string()).optional().describe('Optional array of field names to return (e.g., ["summary", "status", "assignee"]). If omitted, returns all fields.')
+      fields: z.array(z.string()).optional().describe('Optional array of field names to return (e.g., ["summary", "status", "assignee"]). If omitted, returns all fields.'),
+      format: z.enum(['json', 'concise']).optional().default('json').describe('Response format: "json" returns full JSON (default), "concise" returns readable text with essential fields only (recommended for large result sets to avoid token limits)')
     }
-  }, async ({ jql, maxResults, startAt, fields }) => {
+  }, async ({ jql, maxResults, startAt, fields, format }) => {
     try {
+      // Use concise format with essential fields if requested
+      const useConciseFormat = format === 'concise' && (!fields || fields.length === 0);
+      const defaultFields = ['key', 'summary', 'status', 'assignee', 'priority', 'updated', 'created'];
+
       let endpoint = `/rest/api/2/search?jql=${encodeURIComponent(jql)}&maxResults=${maxResults}&startAt=${startAt}`;
-      if (fields && fields.length > 0) {
+      if (useConciseFormat) {
+        endpoint += `&fields=${defaultFields.join(',')}`;
+      } else if (fields && fields.length > 0) {
         endpoint += `&fields=${fields.join(',')}`;
       }
+      // If neither, don't add fields param (returns all fields - original behavior)
+
       const data = await jiraRequest(baseUrl, bearerToken, endpoint);
+
+      // Format concisely when format=concise
+      if (useConciseFormat) {
+        const issues = data.issues.map(issue => {
+          const status = issue.fields.status?.name || 'N/A';
+          const assignee = issue.fields.assignee?.displayName || 'Unassigned';
+          const priority = issue.fields.priority?.name || 'N/A';
+          const updated = issue.fields.updated ? new Date(issue.fields.updated).toISOString().split('T')[0] : 'N/A';
+          const created = issue.fields.created ? new Date(issue.fields.created).toISOString().split('T')[0] : 'N/A';
+
+          return `${issue.key}: ${issue.fields.summary}\n  Status: ${status} | Assignee: ${assignee} | Priority: ${priority}\n  Created: ${created} | Updated: ${updated}`;
+        }).join('\n\n');
+
+        const summary = `Total: ${data.total}, Returned: ${data.issues.length}, StartAt: ${startAt}, MaxResults: ${maxResults}`;
+
+        return {
+          content: [{
+            type: 'text',
+            text: `${summary}\n\n${issues}`
+          }]
+        };
+      }
+
+      // Return full JSON when custom fields are requested
       return {
         content: [{
           type: 'text',

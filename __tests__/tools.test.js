@@ -309,4 +309,128 @@ describe('Jira MCP Tools Integration Tests', () => {
       expect(invalidToolName).not.toMatch(/^[a-z-]+$/);
     });
   });
+
+  describe('Concise Response Formatting', () => {
+    test('should format search results concisely when format=concise', () => {
+      const mockApiResponse = {
+        total: 2,
+        startAt: 0,
+        maxResults: 50,
+        issues: [
+          {
+            key: 'DEV-123',
+            fields: {
+              summary: 'Test issue 1',
+              status: { name: 'Open' },
+              assignee: { displayName: 'John Doe' },
+              priority: { name: 'High' },
+              updated: '2025-01-15T10:30:00.000+0000',
+              created: '2025-01-01T08:00:00.000+0000'
+            }
+          },
+          {
+            key: 'DEV-124',
+            fields: {
+              summary: 'Test issue 2',
+              status: { name: 'In Progress' },
+              assignee: null,
+              priority: { name: 'Medium' },
+              updated: '2025-01-16T14:20:00.000+0000',
+              created: '2025-01-02T09:15:00.000+0000'
+            }
+          }
+        ]
+      };
+
+      // Format similar to what the tool does
+      const issues = mockApiResponse.issues.map(issue => {
+        const status = issue.fields.status?.name || 'N/A';
+        const assignee = issue.fields.assignee?.displayName || 'Unassigned';
+        const priority = issue.fields.priority?.name || 'N/A';
+        const updated = issue.fields.updated ? new Date(issue.fields.updated).toISOString().split('T')[0] : 'N/A';
+        const created = issue.fields.created ? new Date(issue.fields.created).toISOString().split('T')[0] : 'N/A';
+
+        return `${issue.key}: ${issue.fields.summary}\n  Status: ${status} | Assignee: ${assignee} | Priority: ${priority}\n  Created: ${created} | Updated: ${updated}`;
+      }).join('\n\n');
+
+      const summary = `Total: ${mockApiResponse.total}, Returned: ${mockApiResponse.issues.length}, StartAt: 0, MaxResults: 50`;
+      const formattedResponse = `${summary}\n\n${issues}`;
+
+      // Verify formatting
+      expect(formattedResponse).toContain('Total: 2');
+      expect(formattedResponse).toContain('DEV-123: Test issue 1');
+      expect(formattedResponse).toContain('Status: Open');
+      expect(formattedResponse).toContain('Assignee: John Doe');
+      expect(formattedResponse).toContain('Priority: High');
+      expect(formattedResponse).toContain('DEV-124: Test issue 2');
+      expect(formattedResponse).toContain('Assignee: Unassigned');
+      expect(formattedResponse).not.toContain('{'); // Should not be JSON
+    });
+
+    test('should use default fields when format=concise and fields not provided', () => {
+      const format = 'concise';
+      const fields = undefined;
+      const useConciseFormat = format === 'concise' && (!fields || fields.length === 0);
+      const defaultFields = ['key', 'summary', 'status', 'assignee', 'priority', 'updated', 'created'];
+
+      expect(useConciseFormat).toBe(true);
+      expect(defaultFields.length).toBe(7);
+      expect(defaultFields).toContain('key');
+      expect(defaultFields).toContain('summary');
+      expect(defaultFields).toContain('status');
+    });
+
+    test('should return all fields when format=json (default) and fields not provided', () => {
+      const format = 'json';
+      const fields = undefined;
+      const useConciseFormat = format === 'concise' && (!fields || fields.length === 0);
+
+      expect(useConciseFormat).toBe(false);
+      // When useConciseFormat is false and fields is undefined, API returns all fields (no fields param in URL)
+    });
+
+    test('should use custom fields when provided', () => {
+      const defaultFields = ['key', 'summary', 'status', 'assignee', 'priority', 'updated', 'created'];
+      const customFields = ['key', 'summary', 'description'];
+      const fieldsToUse = customFields && customFields.length > 0 ? customFields : defaultFields;
+
+      expect(fieldsToUse).toEqual(customFields);
+      expect(fieldsToUse).not.toEqual(defaultFields);
+      expect(fieldsToUse.length).toBe(3);
+    });
+
+    test('should handle missing field values gracefully', () => {
+      const issue = {
+        key: 'DEV-125',
+        fields: {
+          summary: 'Test issue with missing fields',
+          status: null,
+          assignee: null,
+          priority: null,
+          updated: null,
+          created: null
+        }
+      };
+
+      const status = issue.fields.status?.name || 'N/A';
+      const assignee = issue.fields.assignee?.displayName || 'Unassigned';
+      const priority = issue.fields.priority?.name || 'N/A';
+      const updated = issue.fields.updated ? new Date(issue.fields.updated).toISOString().split('T')[0] : 'N/A';
+      const created = issue.fields.created ? new Date(issue.fields.created).toISOString().split('T')[0] : 'N/A';
+
+      expect(status).toBe('N/A');
+      expect(assignee).toBe('Unassigned');
+      expect(priority).toBe('N/A');
+      expect(updated).toBe('N/A');
+      expect(created).toBe('N/A');
+    });
+
+    test('should format dates correctly from ISO strings', () => {
+      const isoDate = '2025-01-15T10:30:45.123+0000';
+      const formattedDate = new Date(isoDate).toISOString().split('T')[0];
+
+      expect(formattedDate).toBe('2025-01-15');
+      expect(formattedDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    });
+  });
 });

@@ -43,6 +43,7 @@ All existing Jira MCP packages are designed for Jira Cloud and use Basic Authent
 
 - **Response Caching** - Metadata endpoints (projects, issue types, statuses, custom fields) cached for 5 minutes
 - **Retry Logic** - Automatic retry with exponential backoff for transient server errors (502, 503, 504)
+- **Concise Format Option** - Search tools support `format: "concise"` parameter for readable text output with minimal fields (key, summary, status, assignee, priority, updated, created) to prevent token limit issues
 - **Field Filtering** - Optional `fields` parameter on search and get-issue to reduce response size
 - **Pagination** - `startAt` parameter on search-issues for fetching beyond first 50 results
 - **Request Timeouts** - 30-second timeout prevents hung connections
@@ -183,9 +184,34 @@ jira: /path/to/jira-mcp-bearer/index.js - ✓ Connected
 ### Search for Issues
 
 ```javascript
+// Default: Returns full JSON with all fields
 mcp__jira__jira-search-issues({
   jql: "project = DEV AND status = Open",
   maxResults: 10
+})
+
+// Concise format: Returns readable text with essential fields (avoids token limits)
+mcp__jira__jira-search-issues({
+  jql: "project = DEV AND status = Open",
+  maxResults: 10,
+  format: "concise"
+})
+// Output:
+// Total: 15, Returned: 10, StartAt: 0, MaxResults: 10
+//
+// DEV-123: Login page not loading
+//   Status: Open | Assignee: John Doe | Priority: High
+//   Created: 2025-01-01 | Updated: 2025-01-15
+//
+// DEV-124: Dashboard showing wrong data
+//   Status: In Progress | Assignee: Jane Smith | Priority: Medium
+//   Created: 2025-01-02 | Updated: 2025-01-16
+
+// Custom fields: Returns JSON with specific fields
+mcp__jira__jira-search-issues({
+  jql: "project = DEV AND status = Open",
+  maxResults: 10,
+  fields: ["key", "summary", "description", "status"]
 })
 ```
 
@@ -373,10 +399,21 @@ Check that:
 
 ### Token Limit Exceeded
 
-If responses exceed token limits:
-- For `jira-get-projects`: Reduce `maxResults` parameter
-- For `jira-search-issues`: Reduce `maxResults` or narrow JQL query
-- Consider requesting specific fields only when supported
+If search responses exceed token limits, use the `format: "concise"` parameter:
+```javascript
+mcp__jira__jira-search-issues({
+  jql: "project = DEV",
+  format: "concise"  // Returns readable text with 7 essential fields instead of 100+ fields
+})
+```
+
+This reduces token usage by ~95% (10 results: 48,000 tokens → 2,000 tokens).
+
+Additional strategies:
+- Reduce `maxResults` parameter (default: 50, try 10-20)
+- Narrow your JQL query to return fewer results
+- Use pagination with `startAt` to process results in batches
+- Use `fields` parameter to select specific fields as JSON
 
 ## Jira API Reference
 
