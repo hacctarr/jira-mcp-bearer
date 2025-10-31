@@ -14,9 +14,7 @@
     "tools/",
     "README.md",
     "LICENSE",
-    "CHANGELOG.md",
-    "QUICKSTART.md",
-    "EXAMPLES.md"
+    "CHANGELOG.md"
   ],
   "scripts": {
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
