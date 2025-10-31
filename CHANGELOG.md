@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2025-10-30
+
+### Fixed
+
+- **Critical:** Fixed npm package missing `lib/` and `tools/` directories
+  - Added `lib/` and `tools/` to package.json `files` array
+  - v1.1.0 was published with missing dependencies and was broken
+  - This patch fixes the installation issue
+
 ## [1.1.0] - 2025-10-30
 
 ### Added
