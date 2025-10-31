@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Concise format option** for search tools to prevent token limit errors:
+  - New `format` parameter with values `"json"` (default) or `"concise"`
+  - `format: "concise"` returns readable text with 7 essential fields (key, summary, status, assignee, priority, updated, created)
+  - Reduces token usage by ~95% (10 results: 48,000 tokens → 2,000 tokens)
+  - Available on: `jira-search-issues`, `jira-get-my-issues`, `jira-get-recent-issues`
+  - Completely opt-in - default behavior unchanged
+- Test coverage for concise formatting behavior (6 new tests)
 - Issue filtering helper tools:
   - `jira-get-my-issues` - Get issues assigned to current user with optional status/project filters
   - `jira-get-recent-issues` - Get recently updated or viewed issues
@@ -25,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Updated documentation with concise format examples and token limit troubleshooting strategies
 - Updated GitHub Actions publish workflow to use OIDC for tokenless npm authentication
 - Improved workflow documentation with OIDC setup instructions
 - Refactored codebase into modular structure for better maintainability:
