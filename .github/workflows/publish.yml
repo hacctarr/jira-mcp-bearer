@@ -28,5 +28,7 @@ jobs:
     - name: Run tests
       run: npm test
 
-    - name: Publish to npm with OIDC
+    - name: Publish to npm
       run: npm publish --provenance --access public
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
