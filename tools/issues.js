@@ -415,16 +415,25 @@ export function registerIssueTools(mcpServer, jiraRequest, baseUrl, bearerToken)
 
   // Transition issue
   mcpServer.registerTool('jira-transition-issue', {
-    description: 'Transition a Jira issue to a new status. Use get_issue_transitions first to see available transitions.',
+    description: 'Transition a Jira issue to a new status. Use get_issue_transitions first to see available transitions. Some workflows require a comment — pass one to satisfy that constraint.',
     inputSchema: {
       issueKey: z.string().describe('Issue key (e.g., "DEV-123")'),
-      transitionId: z.string().describe('Transition ID (get from get_issue_transitions)')
+      transitionId: z.string().describe('Transition ID (get from get_issue_transitions)'),
+      comment: z.string().optional().describe('Optional comment to include with the transition (required by some workflows)'),
+      fields: z.record(z.any()).optional().describe('Optional fields to set during transition (e.g., {"resolution": {"name": "Done"}})')
     }
-  }, async ({ issueKey, transitionId }) => {
+  }, async ({ issueKey, transitionId, comment, fields }) => {
     try {
+      const payload = { transition: { id: transitionId } };
+      if (comment) {
+        payload.update = { comment: [{ add: { body: comment } }] };
+      }
+      if (fields) {
+        payload.fields = fields;
+      }
       await jiraRequest(baseUrl, bearerToken, `/rest/api/2/issue/${encodeURIComponent(issueKey)}/transitions`, {
         method: 'POST',
-        body: JSON.stringify({ transition: { id: transitionId } })
+        body: JSON.stringify(payload)
       });
 
       return {

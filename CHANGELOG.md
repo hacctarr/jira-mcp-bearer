@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-06-24
+
+### Added
+
+- `jira-transition-issue`: optional `comment` and `fields` parameters.
+  - `comment` is sent via the transition's `update.comment`, satisfying workflow
+    transition screens that require a comment (previously these failed with
+    "Please provide a comment for this transition" and could only be worked
+    around by calling the REST API directly).
+  - `fields` sets fields during the transition (e.g. `{"resolution": {"name": "Done"}}`)
+    for screens that require a resolution or other fields.
+  - Both are optional and additive — existing no-argument transitions are unchanged.
+
 ## [1.1.1] - 2025-10-30
 
 ### Fixed
