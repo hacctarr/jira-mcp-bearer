@@ -40,15 +40,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Available on: `jira-search-issues`, `jira-get-my-issues`, `jira-get-recent-issues`
   - Completely opt-in - default behavior unchanged
 - Test coverage for concise formatting behavior (6 new tests)
-
-### Changed
-
-- Updated documentation with concise format examples and token limit troubleshooting strategies
-
-## [Unreleased]
-
-### Added
-
 - Issue filtering helper tools:
   - `jira-get-my-issues` - Get issues assigned to current user with optional status/project filters
   - `jira-get-recent-issues` - Get recently updated or viewed issues
@@ -65,6 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Updated documentation with concise format examples and token limit troubleshooting strategies
 - Updated GitHub Actions publish workflow to use OIDC for tokenless npm authentication
 - Improved workflow documentation with OIDC setup instructions
 - Refactored codebase into modular structure for better maintainability:
