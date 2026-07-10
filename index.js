@@ -10,6 +10,8 @@ import { registerWorklogTools } from './tools/worklogs.js';
 import { registerCommentTools } from './tools/comments.js';
 import { registerUserTools } from './tools/users.js';
 import { registerMetadataTools } from './tools/metadata.js';
+import { registerAgileTools } from './tools/agile.js';
+import { VERSION } from './lib/version.js';
 
 /* istanbul ignore next */
 async function main() {
@@ -22,7 +24,7 @@ async function main() {
     // Create MCP server
     const mcpServer = new McpServer({
       name: 'jira-bearer-auth',
-      version: '1.0.0'
+      version: VERSION
     }, {
       capabilities: {
         tools: {}
@@ -36,6 +38,7 @@ async function main() {
     registerCommentTools(mcpServer, jiraRequest, JIRA_BASE_URL, JIRA_BEARER_TOKEN);
     registerUserTools(mcpServer, jiraRequest, JIRA_BASE_URL, JIRA_BEARER_TOKEN);
     registerMetadataTools(mcpServer, jiraRequest, JIRA_BASE_URL, JIRA_BEARER_TOKEN);
+    registerAgileTools(mcpServer, jiraRequest, JIRA_BASE_URL, JIRA_BEARER_TOKEN);
 
     // Set up stdio transport
     const transport = new StdioServerTransport();

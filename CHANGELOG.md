@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-07-10
+
+### Added
+
+- Worklog mutation tools, completing CRUD over time entries:
+  - `jira-delete-worklog`: delete a worklog by id. Defaults to
+    `adjustEstimate="leave"` so removing a duplicate/mistaken entry does NOT
+    silently inflate the remaining estimate (pass `"auto"` for Jira's native
+    estimate-adjusting behaviour).
+  - `jira-update-worklog`: edit an existing worklog's `timeSpent`, `comment`,
+    and/or `started` in place; only the provided fields change.
+  - Motivation: previously only `jira-get-issue-worklogs` and `jira-add-worklog`
+    existed, so a duplicate worklog could be added but not removed or corrected
+    through the MCP.
+
+## [1.4.0] - 2026-07-10
+
+### Added
+
+- Agile (GreenHopper) tools for sprint discovery, using the `/rest/agile/1.0` API:
+  - `jira-list-boards`: list Agile boards, optionally filtered by `projectKeyOrId`
+    or `name`. Returns each board's numeric id.
+  - `jira-list-sprints`: list sprints on a board (`boardId`), optionally filtered
+    by `state` (active/future/closed). Returns each sprint's id, name, and state.
+  - Purpose: the issue Sprint field (`customfield_10404`) only accepts a numeric
+    sprint id, not a name. These tools resolve that id so `jira-update-issue` can
+    set the Sprint field. Previously there was no way to discover the id.
+
+### Fixed
+
+- Version reported by the MCP server (handshake) and the outbound `User-Agent`
+  header now track `package.json` instead of a hard-coded `1.0.0`. They had
+  silently stayed `1.0.0` across every prior release, masking the real version
+  from telemetry. A new `lib/version.js` reads the version once at load.
+
+## [1.3.0] - 2026-07-10
+
+### Added
+
+- `jira-create-remote-link`: create a remote web link on an issue, pointing to an
+  external URL (e.g. a GitLab merge request). Renders in the issue's Links section.
+  Fills the gap where `jira-link-issues` only handles issue-to-issue links and there
+  was no way to attach an MR/URL as a structured link (only as a comment).
+  - Required: `issueKey`, `url`, `title`. Optional: `summary`, `relationship`.
+
+### Fixed
+
+- `jiraRequest` no longer surfaces a successful write as an error when Jira returns
+  a 2xx with an empty body. Endpoints like `POST /issueLink` return `201` with no
+  body; calling `response.json()` threw "Unexpected end of JSON input", causing
+  `jira-link-issues` to report failure on links that were actually created. Empty/
+  unparseable 2xx bodies now resolve to `null`.
+
 ## [1.2.0] - 2026-06-24
 
 ### Added
