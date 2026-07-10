@@ -49,7 +49,7 @@ All existing Jira MCP packages are designed for Jira Cloud and use Basic Authent
 - **Request Timeouts** - 30-second timeout prevents hung connections
 - **Debug Logging** - Enable with `DEBUG=true` environment variable
 
-### Available Tools (27 total)
+### Available Tools (31 total)
 
 #### Issue Operations
 1. **`jira-get-my-issues`** - Get issues assigned to current user (with optional filters)
@@ -75,23 +75,30 @@ All existing Jira MCP packages are designed for Jira Cloud and use Basic Authent
 #### Worklog Operations (Time Tracking)
 16. **`jira-get-issue-worklogs`** - Get all worklog entries for an issue
 17. **`jira-add-worklog`** - Add time tracking entry to an issue
+18. **`jira-update-worklog`** - Update an existing worklog entry (time/comment/started)
+19. **`jira-delete-worklog`** - Delete a worklog entry by id (defaults to leaving the remaining estimate unchanged)
 
 #### User Operations
-18. **`jira-get-user`** - Get user details (omit username for current user)
+20. **`jira-get-user`** - Get user details (omit username for current user)
 
 #### Metadata Operations
-19. **`jira-list-issue-types`** - Get all available issue types (Bug, Story, Task, etc.)
-20. **`jira-list-statuses`** - Get all available issue statuses
-21. **`jira-get-issue-transitions`** - Get available transitions for an issue
-22. **`jira-get-custom-fields`** - Get all custom field definitions
+21. **`jira-list-issue-types`** - Get all available issue types (Bug, Story, Task, etc.)
+22. **`jira-list-statuses`** - Get all available issue statuses
+23. **`jira-get-issue-transitions`** - Get available transitions for an issue
+24. **`jira-get-custom-fields`** - Get all custom field definitions
 
 #### Link and Watch Operations
-23. **`jira-link-issues`** - Create a link between two issues
-24. **`jira-add-watcher`** - Add a watcher to an issue
-25. **`jira-remove-watcher`** - Remove a watcher from an issue
+25. **`jira-link-issues`** - Create a link between two issues
+26. **`jira-create-remote-link`** - Create a remote web link on an issue (e.g. to a GitLab merge request or external URL)
+27. **`jira-add-watcher`** - Add a watcher to an issue
+28. **`jira-remove-watcher`** - Remove a watcher from an issue
 
 #### Attachment Operations
-26. **`jira-upload-attachment`** - Upload a file attachment to an issue
+29. **`jira-upload-attachment`** - Upload a file attachment to an issue
+
+#### Agile Operations
+30. **`jira-list-boards`** - List Agile boards (optionally filtered by project or name)
+31. **`jira-list-sprints`** - List sprints on a board with id/name/state (use the sprint id to set an issue's Sprint field)
 
 ## Installation
 

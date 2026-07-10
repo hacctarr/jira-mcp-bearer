@@ -10,7 +10,7 @@ describe('Exported Functions Integration Tests', () => {
   process.env.JIRA_BASE_URL = 'https://jira.test.com';
   process.env.JIRA_BEARER_TOKEN = 'test-token-123';
 
-  let loadConfig, jiraRequest, isValidFilePath, getCached, sleep, HTTP_STATUS, REQUEST_TIMEOUT_MS, CACHE_TTL_MS, MAX_RETRIES, RETRY_DELAY_BASE_MS;
+  let loadConfig, jiraRequest, isValidFilePath, getCached, sleep, HTTP_STATUS, REQUEST_TIMEOUT_MS, CACHE_TTL_MS, MAX_RETRIES, RETRY_DELAY_BASE_MS, VERSION;
 
   // Mock fetch globally
   global.fetch = jest.fn();
@@ -20,9 +20,11 @@ describe('Exported Functions Integration Tests', () => {
     const configModule = await import('../lib/config.js');
     const utilsModule = await import('../lib/utils.js');
     const clientModule = await import('../lib/jira-client.js');
+    const versionModule = await import('../lib/version.js');
 
     loadConfig = configModule.loadConfig;
     jiraRequest = clientModule.jiraRequest;
+    VERSION = versionModule.VERSION;
     isValidFilePath = utilsModule.isValidFilePath;
     getCached = utilsModule.getCached;
     sleep = utilsModule.sleep;
@@ -135,7 +137,7 @@ describe('Exported Functions Integration Tests', () => {
           headers: expect.objectContaining({
             'Authorization': expect.stringContaining('Bearer'),
             'Content-Type': 'application/json',
-            'User-Agent': 'jira-mcp-bearer/1.0.0'
+            'User-Agent': `jira-mcp-bearer/${VERSION}`
           })
         })
       );
@@ -150,6 +152,51 @@ describe('Exported Functions Integration Tests', () => {
       const result = await jiraRequest(testBaseUrl, testToken, '/rest/api/2/issue/DEV-123');
 
       expect(result).toBeNull();
+    });
+
+    test('should return null (not throw) on 201 with empty body', async () => {
+      // Jira's POST /issueLink returns 201 with no body; response.json() would
+      // throw "Unexpected end of JSON input". A successful write must not surface
+      // as an error.
+      global.fetch.mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+        json: async () => { throw new SyntaxError('Unexpected end of JSON input'); }
+      });
+
+      const result = await jiraRequest(testBaseUrl, testToken, '/rest/api/2/issueLink', {
+        method: 'POST',
+        body: '{}'
+      });
+
+      expect(result).toBeNull();
+    });
+
+    test('should return null (not throw) on 200 with empty body', async () => {
+      global.fetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => { throw new SyntaxError('Unexpected end of JSON input'); }
+      });
+
+      const result = await jiraRequest(testBaseUrl, testToken, '/rest/api/2/some/endpoint');
+
+      expect(result).toBeNull();
+    });
+
+    test('should still parse a JSON body on 201 (remote link create)', async () => {
+      global.fetch.mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+        json: async () => ({ id: 10001, self: 'https://jira.test.com/rest/api/2/issue/DEV-123/remotelink/10001' })
+      });
+
+      const result = await jiraRequest(testBaseUrl, testToken, '/rest/api/2/issue/DEV-123/remotelink', {
+        method: 'POST',
+        body: '{}'
+      });
+
+      expect(result).toEqual({ id: 10001, self: expect.stringContaining('remotelink/10001') });
     });
 
     test('should throw error on 401 Unauthorized', async () => {

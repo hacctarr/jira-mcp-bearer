@@ -586,6 +586,50 @@ export function registerIssueTools(mcpServer, jiraRequest, baseUrl, bearerToken)
     }
   });
 
+  // Create remote (web) link
+  mcpServer.registerTool('jira-create-remote-link', {
+    description: 'Create a remote web link on a Jira issue (e.g. to a GitLab merge request or external URL). Renders in the issue\'s Links section. Use this for URLs that are not other Jira issues; use jira-link-issues for issue-to-issue links.',
+    inputSchema: {
+      issueKey: z.string().describe('Issue key to attach the link to (e.g., "DEV-123")'),
+      url: z.string().url().describe('Target URL (e.g., a GitLab merge request URL)'),
+      title: z.string().describe('Link title shown to users (e.g., "gitops.config !220")'),
+      summary: z.string().optional().describe('Optional summary text shown under the link'),
+      relationship: z.string().optional().describe('Optional relationship label (e.g., "mentioned in", "implements")')
+    }
+  }, async ({ issueKey, url, title, summary, relationship }) => {
+    try {
+      const linkObject = { url, title };
+      if (summary !== undefined) {
+        linkObject.summary = summary;
+      }
+
+      const body = { object: linkObject };
+      if (relationship !== undefined) {
+        body.relationship = relationship;
+      }
+
+      const data = await jiraRequest(baseUrl, bearerToken, `/rest/api/2/issue/${encodeURIComponent(issueKey)}/remotelink`, {
+        method: 'POST',
+        body: JSON.stringify(body)
+      });
+
+      return {
+        content: [{
+          type: 'text',
+          text: `Successfully created remote link "${title}" on ${issueKey}${data ? `\n\n${JSON.stringify(data, null, 2)}` : ''}`
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text',
+          text: `Error: ${error.message}`
+        }],
+        isError: true
+      };
+    }
+  });
+
   // Upload attachment
   mcpServer.registerTool('jira-upload-attachment', {
     description: 'Upload a file attachment to a Jira issue',
