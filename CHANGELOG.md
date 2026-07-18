@@ -43,6 +43,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     project's screen/field configuration allowing it.
   - New pure helper `normalizePriority` in `lib/utils.js`, unit-tested for
     name/id/object/empty inputs.
+- Comment editing/deletion, completing CRUD over comments (previously only
+  `jira-get-issue-comments` and `jira-add-comment` existed):
+  - `jira-update-comment`: edit the body of an existing comment
+    (`PUT /rest/api/2/issue/{key}/comment/{id}`).
+  - `jira-delete-comment`: delete a comment permanently
+    (`DELETE /rest/api/2/issue/{key}/comment/{id}`).
+  - Both take the comment id from `jira-get-issue-comments`.
 
 ## [1.5.0] - 2026-07-10
 

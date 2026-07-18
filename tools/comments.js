@@ -64,4 +64,66 @@ export function registerCommentTools(mcpServer, jiraRequest, baseUrl, bearerToke
       };
     }
   });
+
+  // Update comment
+  mcpServer.registerTool('jira-update-comment', {
+    description: 'Edit the body of an existing comment on a Jira issue. Get the comment id from jira-get-issue-comments.',
+    inputSchema: {
+      issueKey: z.string().describe('Issue key (e.g., "DEV-123")'),
+      commentId: z.string().describe('Comment id to edit (from jira-get-issue-comments)'),
+      body: z.string().describe('New comment text (replaces the existing body)')
+    }
+  }, async ({ issueKey, commentId, body }) => {
+    try {
+      const data = await jiraRequest(baseUrl, bearerToken, `/rest/api/2/issue/${encodeURIComponent(issueKey)}/comment/${encodeURIComponent(commentId)}`, {
+        method: 'PUT',
+        body: JSON.stringify({ body })
+      });
+
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify(data, null, 2)
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text',
+          text: `Error: ${error.message}`
+        }],
+        isError: true
+      };
+    }
+  });
+
+  // Delete comment
+  mcpServer.registerTool('jira-delete-comment', {
+    description: 'Delete a comment from a Jira issue permanently. Get the comment id from jira-get-issue-comments.',
+    inputSchema: {
+      issueKey: z.string().describe('Issue key (e.g., "DEV-123")'),
+      commentId: z.string().describe('Comment id to delete (from jira-get-issue-comments)')
+    }
+  }, async ({ issueKey, commentId }) => {
+    try {
+      await jiraRequest(baseUrl, bearerToken, `/rest/api/2/issue/${encodeURIComponent(issueKey)}/comment/${encodeURIComponent(commentId)}`, {
+        method: 'DELETE'
+      });
+
+      return {
+        content: [{
+          type: 'text',
+          text: `Comment ${commentId} deleted from ${issueKey}`
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text',
+          text: `Error: ${error.message}`
+        }],
+        isError: true
+      };
+    }
+  });
 }
