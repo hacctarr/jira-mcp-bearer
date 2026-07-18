@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { issueKeySchema, projectKeySchema, jqlSchema, summarySchema, maxResultsSchema, isValidFilePath } from '../lib/utils.js';
+import { issueKeySchema, projectKeySchema, jqlSchema, summarySchema, maxResultsSchema, isValidFilePath, normalizePriority } from '../lib/utils.js';
+import { parseStatusTimeline, formatStatusTimeline } from '../lib/changelog.js';
 import { readFile } from 'fs/promises';
 import { basename } from 'path';
 
@@ -234,22 +235,60 @@ export function registerIssueTools(mcpServer, jiraRequest, baseUrl, bearerToken)
 
   // Get issue
   mcpServer.registerTool('jira-get-issue', {
-    description: 'Get details of a specific Jira issue',
+    description: 'Get details of a specific Jira issue. Use "expand" to inflate the response with data that is not a field — most notably "changelog" for the full status/field transition history (note: changelog is an EXPAND, not a field, so it must be requested here, not via "fields"). For a parsed status timeline with per-status durations, prefer jira-get-issue-changelog.',
     inputSchema: {
       issueKey: issueKeySchema.describe('Issue key (e.g., "DEV-123")'),
-      fields: z.array(z.string()).optional().describe('Optional array of field names to return (e.g., ["summary", "status", "assignee"]). If omitted, returns all fields.')
+      fields: z.array(z.string()).optional().describe('Optional array of field names to return (e.g., ["summary", "status", "assignee"]). If omitted, returns all fields.'),
+      expand: z.array(z.string()).optional().describe('Optional array of expand parameters to inflate the response (e.g., ["changelog", "renderedFields", "transitions"]). "changelog" returns the full history of status/field transitions with timestamps.')
     }
-  }, async ({ issueKey, fields }) => {
+  }, async ({ issueKey, fields, expand }) => {
     try {
-      let endpoint = `/rest/api/2/issue/${issueKey}`;
+      const params = new URLSearchParams();
       if (fields && fields.length > 0) {
-        endpoint += `?fields=${fields.join(',')}`;
+        params.set('fields', fields.join(','));
       }
+      if (expand && expand.length > 0) {
+        params.set('expand', expand.join(','));
+      }
+      const query = params.toString();
+      const endpoint = `/rest/api/2/issue/${issueKey}${query ? `?${query}` : ''}`;
       const data = await jiraRequest(baseUrl, bearerToken, endpoint);
       return {
         content: [{
           type: 'text',
           text: JSON.stringify(data, null, 2)
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text',
+          text: `Error: ${error.message}`
+        }],
+        isError: true
+      };
+    }
+  });
+
+  // Get issue changelog / status-transition timeline
+  mcpServer.registerTool('jira-get-issue-changelog', {
+    description: 'Get the exact status-transition history of a Jira issue, with the wall-clock duration spent in each status. Answers questions like "how long did this sit in Awaiting Review before Done" from real transition timestamps (not approximated from created/updated). Fetches the issue with expand=changelog and parses it. Returns a compact timeline by default (token-cheaper than the raw changelog).',
+    inputSchema: {
+      issueKey: issueKeySchema.describe('Issue key (e.g., "DEV-123")'),
+      format: z.enum(['timeline', 'json']).optional().default('timeline').describe('Response format: "timeline" (default) returns a readable per-status timeline with durations and totals; "json" returns the structured object (transitions, segments, totalsByStatus).')
+    }
+  }, async ({ issueKey, format }) => {
+    try {
+      const endpoint = `/rest/api/2/issue/${issueKey}?expand=changelog&fields=summary,status,created`;
+      const data = await jiraRequest(baseUrl, bearerToken, endpoint);
+      const parsed = parseStatusTimeline(data);
+
+      return {
+        content: [{
+          type: 'text',
+          text: format === 'json'
+            ? JSON.stringify(parsed, null, 2)
+            : formatStatusTimeline(parsed)
         }]
       };
     } catch (error) {
@@ -271,9 +310,10 @@ export function registerIssueTools(mcpServer, jiraRequest, baseUrl, bearerToken)
       issueType: z.string().min(1).describe('Issue type name (e.g., "Bug", "Story", "Task")'),
       summary: summarySchema.describe('Issue summary/title (max 255 characters)'),
       description: z.string().optional().describe('Issue description'),
+      priority: z.string().optional().describe('Optional priority by name ("Highest", "High", "Medium", ...) or numeric id. Use jira-list-priorities to discover valid values. Note: the project screen config must allow setting priority, otherwise Jira rejects it.'),
       fields: z.record(z.any()).optional().describe('Additional custom fields as JSON object')
     }
-  }, async ({ projectKey, issueType, summary, description, fields = {} }) => {
+  }, async ({ projectKey, issueType, summary, description, priority, fields = {} }) => {
     try {
       // Start with required fields
       const issueData = {
@@ -292,6 +332,12 @@ export function registerIssueTools(mcpServer, jiraRequest, baseUrl, bearerToken)
       // Merge additional fields after core fields are set
       // This allows custom fields and components to be added
       Object.assign(issueData.fields, fields);
+
+      // Apply the dedicated priority param last so it wins over any fields passthrough
+      const normalizedPriority = normalizePriority(priority);
+      if (normalizedPriority) {
+        issueData.fields.priority = normalizedPriority;
+      }
 
       const data = await jiraRequest(baseUrl, bearerToken, '/rest/api/2/issue', {
         method: 'POST',
@@ -322,9 +368,10 @@ export function registerIssueTools(mcpServer, jiraRequest, baseUrl, bearerToken)
       issueKey: z.string().describe('Issue key (e.g., "DEV-123")'),
       summary: z.string().optional().describe('Updated summary/title'),
       description: z.string().optional().describe('Updated description'),
+      priority: z.string().optional().describe('Updated priority by name ("Highest", "High", "Medium", ...) or numeric id. Use jira-list-priorities to discover valid values. Note: the project screen config must allow setting priority, otherwise Jira rejects it.'),
       fields: z.record(z.any()).optional().describe('Additional fields to update as JSON object')
     }
-  }, async ({ issueKey, summary, description, fields = {} }) => {
+  }, async ({ issueKey, summary, description, priority, fields = {} }) => {
     try {
       const updateData = { fields: { ...fields } };
 
@@ -334,6 +381,12 @@ export function registerIssueTools(mcpServer, jiraRequest, baseUrl, bearerToken)
 
       if (description) {
         updateData.fields.description = description;
+      }
+
+      // Apply the dedicated priority param last so it wins over any fields passthrough
+      const normalizedPriority = normalizePriority(priority);
+      if (normalizedPriority) {
+        updateData.fields.priority = normalizedPriority;
       }
 
       await jiraRequest(baseUrl, bearerToken, `/rest/api/2/issue/${encodeURIComponent(issueKey)}`, {

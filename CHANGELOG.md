@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-07-18
+
+### Added
+
+- Status-transition history / changelog support. Previously the server exposed
+  no way to read an issue's status history, so "how long did this sit in a
+  status before another" could only be approximated from `created`/`updated`
+  and comment timestamps.
+  - `jira-get-issue-changelog`: fetches the issue with `expand=changelog` and
+    returns a parsed status timeline with the exact wall-clock duration spent in
+    each status (segments, per-status totals, and the current open status).
+    Defaults to a compact readable timeline (`format: "timeline"`); pass
+    `format: "json"` for the structured object. Cheaper on tokens than dumping
+    the raw changelog. Surfaces a truncation warning if the server returned
+    fewer history entries than `changelog.total`.
+  - `jira-get-issue` gained an `expand` parameter (array), so callers can
+    request `["changelog"]`, `["renderedFields"]`, etc. `changelog` is a Jira
+    EXPAND, not a field: requesting it via `fields` returns nothing useful,
+    which is why the history was previously unreachable.
+  - New pure module `lib/changelog.js` (`parseStatusTimeline`, `formatDuration`,
+    `formatStatusTimeline`) with unit tests covering multi-transition timelines,
+    status revisits, out-of-order histories, truncation, and never-transitioned
+    issues.
+- Priority support:
+  - `jira-list-priorities`: lists the instance's priorities (id + name) from
+    `/rest/api/2/priority`, cached 5 minutes — mirrors `jira-list-statuses`.
+    Previously there was no way to discover valid priority values through the
+    MCP.
+  - `jira-create-issue` and `jira-update-issue` gained a `priority` param that
+    accepts a name ("High") or numeric id ("2") and normalizes it to the shape
+    Jira expects. Priority was already settable via the generic `fields`
+    passthrough; the dedicated param is discoverable and applied last so it
+    wins over any `fields.priority`. Note: setting priority still depends on the
+    project's screen/field configuration allowing it.
+  - New pure helper `normalizePriority` in `lib/utils.js`, unit-tested for
+    name/id/object/empty inputs.
+- Comment editing/deletion, completing CRUD over comments (previously only
+  `jira-get-issue-comments` and `jira-add-comment` existed):
+  - `jira-update-comment`: edit the body of an existing comment
+    (`PUT /rest/api/2/issue/{key}/comment/{id}`).
+  - `jira-delete-comment`: delete a comment permanently
+    (`DELETE /rest/api/2/issue/{key}/comment/{id}`).
+  - Both take the comment id from `jira-get-issue-comments`.
+
 ## [1.5.0] - 2026-07-10
 
 ### Added

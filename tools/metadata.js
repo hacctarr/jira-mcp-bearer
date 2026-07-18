@@ -87,4 +87,30 @@ export function registerMetadataTools(mcpServer, jiraRequest, baseUrl, bearerTok
       };
     }
   });
+
+  // List priorities
+  mcpServer.registerTool('jira-list-priorities', {
+    description: 'Get list of all available issue priorities in Jira (Highest, High, Medium, etc.), each with its id and name. Use the name or id with the "priority" parameter on jira-create-issue / jira-update-issue. Cached for 5 minutes.',
+    inputSchema: {}
+  }, async () => {
+    try {
+      const data = await getCached('priorities', async () => {
+        return await jiraRequest(baseUrl, bearerToken, '/rest/api/2/priority');
+      });
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify(data, null, 2)
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text',
+          text: `Error: ${error.message}`
+        }],
+        isError: true
+      };
+    }
+  });
 }
