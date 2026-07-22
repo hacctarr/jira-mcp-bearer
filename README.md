@@ -14,24 +14,20 @@ A Model Context Protocol (MCP) server that provides integration with Jira Server
 # 1. Install from npm
 npm install -g jira-mcp-bearer
 
-# 2. Run setup (interactive)
-npx jira-mcp-bearer setup.js
-# Or if installed globally: jira-mcp-bearer setup.js
-
-# 3. Add to Claude Code (setup.js will provide the exact command)
-claude mcp add jira /path/to/jira-mcp-bearer/index.js \
+# 2. Add to Claude Code with credentials as environment variables
+claude mcp add jira jira-mcp-bearer \
   -e JIRA_BASE_URL=https://your-jira.com \
   -e JIRA_BEARER_TOKEN=your-token
 
-# 4. Restart Claude Code to load the MCP
+# 3. Restart Claude Code to load the MCP
 
-# 5. Use in Claude naturally:
+# 4. Use in Claude naturally:
 # "Show me issue DEV-123"
 # "Search for open issues in the DEV project"
 # "Create a bug in project CORE with summary 'Login broken'"
 ```
 
-That's it! No bash, no environment variables needed. Claude calls the MCP tools directly.
+That's it! Claude calls the MCP tools directly.
 
 ## Why This Exists
 
@@ -132,44 +128,12 @@ cd jira-mcp-bearer
 npm install
 
 # Make executable
-chmod +x index.js setup.js
+chmod +x index.js
 ```
 
 ## Configuration
 
-### Option 1: Interactive Setup (Recommended)
-
-```bash
-./setup.js
-```
-
-This will:
-- Prompt for your Jira base URL
-- Prompt for your Bearer token
-- Create a `config.json` file
-- Test the connection
-- Provide the exact `claude mcp add` command to run
-
-### Option 2: Manual Setup
-
-Create a `config.json` file:
-
-```json
-{
-  "jira": {
-    "baseUrl": "https://your-jira-server.com",
-    "bearerToken": "your-bearer-token-here"
-  }
-}
-```
-
-Then add to Claude Code:
-
-```bash
-claude mcp add jira $(pwd)/index.js
-```
-
-### Option 3: Environment Variables
+Credentials are read from environment variables only: `JIRA_BASE_URL` and `JIRA_BEARER_TOKEN`. There is no config file; this keeps the token in exactly one place (your MCP client's server registration).
 
 ```bash
 claude mcp add jira $(pwd)/index.js \
@@ -177,7 +141,7 @@ claude mcp add jira $(pwd)/index.js \
   -e JIRA_BEARER_TOKEN=<your-token-here>
 ```
 
-**Note**: `config.json` takes precedence over environment variables if both are present.
+For Jira Data Center, use a Personal Access Token (Profile → Personal Access Tokens) as the bearer token so it can be revoked and expired independently of your login session.
 
 ### Verify Installation
 
@@ -296,10 +260,7 @@ jira-mcp-bearer/
 │   ├── comments.js        # Comment operations (2 tools)
 │   ├── users.js           # User operations (1 tool)
 │   └── metadata.js        # Issue types, statuses, fields (3 tools)
-├── setup.js               # Interactive setup script
 ├── package.json           # Project dependencies
-├── config.json            # Local configuration (gitignored)
-├── config.json.example    # Example configuration
 ├── jest.config.js         # Test configuration
 ├── __tests__/             # Test suite
 │   └── auth.test.js       # Authentication and API tests
@@ -398,7 +359,7 @@ Check that:
 ### MCP Server Not Connecting
 
 1. Verify installation: `claude mcp list`
-2. Check `config.json` exists and has correct values
+2. Check `JIRA_BASE_URL` and `JIRA_BEARER_TOKEN` are set in the server registration's `env` block
 3. Restart Claude Code after configuration changes
 4. Check logs: MCP servers log to stderr
 
@@ -449,10 +410,10 @@ This server uses Jira REST API v2:
 
 ## Security
 
-- **Never commit `config.json`** - it contains your Bearer token
-- The `.gitignore` file protects `config.json` by default
-- Use `config.json.example` as a template for sharing
+- Credentials live only in environment variables supplied by your MCP client; no config file is read or written
 - Bearer tokens should be treated as passwords
+- Prefer a Personal Access Token with an expiry date over a session token
+- The token is never logged, even with `DEBUG=true`
 
 ## License
 
