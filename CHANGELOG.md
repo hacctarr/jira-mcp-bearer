@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-07-22
+
+### Changed
+
+- **BREAKING**: credentials are now read from environment variables only
+  (`JIRA_BASE_URL`, `JIRA_BEARER_TOKEN`). `config.json` in the package
+  directory is no longer read. Previously a config file took precedence over
+  the environment, so a stale file could silently override the active token,
+  and it kept a plaintext credential on disk outside the MCP client's own
+  configuration. Migrate by passing both variables in the MCP server
+  registration's `env` block. With neither variable set the server now exits
+  at startup with an error on stderr instead of falling back to a file.
+
+### Removed
+
+- `setup.js` interactive setup and `config.json.example` (both existed only
+  to produce the now-unsupported config file).
+
 ## [1.6.0] - 2026-07-18
 
 ### Added
