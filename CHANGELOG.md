@@ -194,7 +194,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Critical:** Fixed MCP server URL doubling bug where baseUrl was concatenated twice
-  - Removed unnecessary `boundJiraRequest` binding that caused `https://jira.alkami.comhttps://jira.alkami.com`
+  - Removed unnecessary `boundJiraRequest` binding that caused `https://jira.example.comhttps://jira.example.com`
   - All MCP tool calls now construct correct URLs
 - Fixed `jira-create-issue` field ordering issue
   - Use `Object.assign()` to merge additional fields after core fields are set
